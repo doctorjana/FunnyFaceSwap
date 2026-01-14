@@ -258,7 +258,8 @@ canvas {
         font-size: 0.75rem;
     }
 
-    .debug-toggle {
+    .debug-toggle,
+    .stable-toggle {
         width: 100%;
     }
 

@@ -154,6 +154,36 @@ function drawFaceMesh(ctx, landmarks, width, height, color = "rgba(0, 255, 0, 0.
     ctx.stroke();
 }
 
+// Canonical points for stable alignment (Dlib 68-style mapping)
+const STABLE_LANDMARK_INDICES = [
+    // Jawline
+    234, 93, 132, 58, 172, 136, 150, 149, 152, 378, 379, 365, 397, 288, 361, 323, 454,
+    // Nose Bridge
+    168, 6, 197, 195,
+    // Nose Tip
+    5, 4, 1, 19, 94,
+    // Left Eyebrow
+    70, 63, 105, 66, 107,
+    // Right Eyebrow
+    336, 296, 334, 293, 300,
+    // Left Eye (Outer contour, avoiding lids to minimize blink jitter)
+    33, 160, 158, 133, 153, 144,
+    // Right Eye (Outer contour)
+    263, 387, 385, 362, 380, 373,
+    // Outer Mouth Contour
+    61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 308, 324, 318, 402, 317, 14, 87, 178, 88
+];
+
+/**
+ * Filter landmarks to include only the designated stable features.
+ * @param {Array} allLandmarks - Array of all detected face landmarks.
+ * @returns {Array} Array of stable landmarks in consistent order.
+ */
+function getStableLandmarks(allLandmarks) {
+    if (!allLandmarks) return [];
+    return STABLE_LANDMARK_INDICES.map(index => allLandmarks[index]).filter(Boolean);
+}
+
 // Export functions for use in script.js
 window.FaceLandmarkerModule = {
     init: initFaceLandmarker,
@@ -161,5 +191,6 @@ window.FaceLandmarkerModule = {
     detectImage: detectLandmarksImage,
     drawLandmarks: drawLandmarks,
     drawFaceMesh: drawFaceMesh,
+    getStableLandmarks: getStableLandmarks,
     isReady: () => isInitialized,
 };

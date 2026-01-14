@@ -6,6 +6,7 @@ const sourceVideo = document.getElementById('sourceVideo');
 const faceImage = document.getElementById('faceImage');
 const placeholder = document.getElementById('placeholder');
 const debugModeCheckbox = document.getElementById('debugMode');
+const stableModeCheckbox = document.getElementById('stableMode');
 
 // State
 let renderLoopId;
@@ -102,6 +103,15 @@ debugModeCheckbox.addEventListener('change', () => {
     }
 });
 
+// Handle stable mode toggle - redraw canvas to show filtered landmarks
+stableModeCheckbox.addEventListener('change', () => {
+    console.log('Stable mode:', stableModeCheckbox.checked ? 'enabled' : 'disabled');
+    // If video isn't playing, manually redraw the canvas
+    if (!sourceVideo.src || sourceVideo.paused) {
+        redrawCanvas();
+    }
+});
+
 // Manual canvas redraw for static content (when video isn't playing)
 function redrawCanvas() {
     // Clear canvas or draw a placeholder
@@ -131,7 +141,11 @@ function redrawCanvas() {
             if (debugModeCheckbox.checked && imageLandmarks && imageLandmarks.length > 0) {
                 ctx.save();
                 ctx.translate(imgX, imgY);
-                window.FaceLandmarkerModule.drawLandmarks(ctx, imageLandmarks[0], imgW, imgH, "#FF00FF");
+                let landmarksToDraw = imageLandmarks[0];
+                if (stableModeCheckbox.checked) {
+                    landmarksToDraw = window.FaceLandmarkerModule.getStableLandmarks(landmarksToDraw);
+                }
+                window.FaceLandmarkerModule.drawLandmarks(ctx, landmarksToDraw, imgW, imgH, "#FF00FF");
                 ctx.restore();
             }
         }
@@ -148,8 +162,14 @@ function redrawCanvas() {
 
         // Draw landmarks on full-size image if debug mode is enabled
         if (debugModeCheckbox.checked && imageLandmarks && imageLandmarks.length > 0) {
-            window.FaceLandmarkerModule.drawLandmarks(ctx, imageLandmarks[0], mainCanvas.width, mainCanvas.height, "#00FF00");
-            window.FaceLandmarkerModule.drawFaceMesh(ctx, imageLandmarks[0], mainCanvas.width, mainCanvas.height, "rgba(0, 255, 0, 0.5)");
+            let landmarksToDraw = imageLandmarks[0];
+            if (stableModeCheckbox.checked) {
+                landmarksToDraw = window.FaceLandmarkerModule.getStableLandmarks(landmarksToDraw);
+                window.FaceLandmarkerModule.drawLandmarks(ctx, landmarksToDraw, mainCanvas.width, mainCanvas.height, "#00FF00");
+            } else {
+                window.FaceLandmarkerModule.drawLandmarks(ctx, landmarksToDraw, mainCanvas.width, mainCanvas.height, "#00FF00");
+                window.FaceLandmarkerModule.drawFaceMesh(ctx, landmarksToDraw, mainCanvas.width, mainCanvas.height, "rgba(0, 255, 0, 0.5)");
+            }
         }
     }
 }
@@ -183,7 +203,11 @@ function drawFrame() {
             // Scale landmarks to the preview image size
             ctx.save();
             ctx.translate(imgX, imgY);
-            window.FaceLandmarkerModule.drawLandmarks(ctx, imageLandmarks[0], imgW, imgH, "#FF00FF");
+            let landmarksToDraw = imageLandmarks[0];
+            if (stableModeCheckbox.checked) {
+                landmarksToDraw = window.FaceLandmarkerModule.getStableLandmarks(landmarksToDraw);
+            }
+            window.FaceLandmarkerModule.drawLandmarks(ctx, landmarksToDraw, imgW, imgH, "#FF00FF");
             ctx.restore();
         }
     }
@@ -191,8 +215,14 @@ function drawFrame() {
     // Draw landmarks on video frame if debug mode is enabled
     if (debugModeCheckbox.checked && videoLandmarks && videoLandmarks.length > 0) {
         for (const faceLandmarks of videoLandmarks) {
-            window.FaceLandmarkerModule.drawLandmarks(ctx, faceLandmarks, mainCanvas.width, mainCanvas.height, "#00FF00");
-            window.FaceLandmarkerModule.drawFaceMesh(ctx, faceLandmarks, mainCanvas.width, mainCanvas.height, "rgba(0, 255, 0, 0.5)");
+            let landmarksToDraw = faceLandmarks;
+            if (stableModeCheckbox.checked) {
+                landmarksToDraw = window.FaceLandmarkerModule.getStableLandmarks(landmarksToDraw);
+                window.FaceLandmarkerModule.drawLandmarks(ctx, landmarksToDraw, mainCanvas.width, mainCanvas.height, "#00FF00");
+            } else {
+                window.FaceLandmarkerModule.drawLandmarks(ctx, landmarksToDraw, mainCanvas.width, mainCanvas.height, "#00FF00");
+                window.FaceLandmarkerModule.drawFaceMesh(ctx, landmarksToDraw, mainCanvas.width, mainCanvas.height, "rgba(0, 255, 0, 0.5)");
+            }
         }
     }
 }
