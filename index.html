@@ -81,6 +81,24 @@
                         </label>
                     </div>
                 </div>
+
+                <!-- Feathering Controls -->
+                <div class="feather-controls">
+                    <h3 class="controls-subtitle">🪶 Edge Feathering</h3>
+                    <p class="controls-hint">Adjust transparency: more opaque center, more transparent edges</p>
+                    <div class="sliders-row">
+                        <div class="slider-item">
+                            <label for="edgeFeather">Edge Blur</label>
+                            <input type="range" id="edgeFeather" min="0" max="50" value="20" step="1">
+                            <span id="edgeFeatherVal" class="slider-val">20px</span>
+                        </div>
+                        <div class="slider-item">
+                            <label for="falloffSlider">Falloff</label>
+                            <input type="range" id="falloffSlider" min="0" max="100" value="70" step="5">
+                            <span id="falloffVal" class="slider-val">70%</span>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- Step 3: Result & Controls -->
@@ -139,6 +157,7 @@
     <script src="faceLandmarker.js"></script>
     <script src="photoProcessor.js"></script>
     <script src="faceWarper.js"></script>
+    <script src="faceBlender.js"></script>
     <script src="script.js"></script>
 </body>
 

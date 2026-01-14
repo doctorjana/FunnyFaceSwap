@@ -14,6 +14,14 @@ const warpFaceBtn = document.getElementById('warpFaceBtn');
 const playPauseBtn = document.getElementById('playPauseBtn');
 const seekSlider = document.getElementById('seekSlider');
 const timeDisplay = document.getElementById('timeDisplay');
+const edgeFeatherSlider = document.getElementById('edgeFeather');
+const edgeFeatherVal = document.getElementById('edgeFeatherVal');
+const falloffSlider = document.getElementById('falloffSlider');
+const falloffVal = document.getElementById('falloffVal');
+
+// Offscreen canvas for warping before blending
+let warpCanvas = null;
+let warpCtx = null;
 
 // Hidden target image element
 const targetImage = document.createElement('img');
@@ -114,6 +122,16 @@ function formatTime(seconds) {
 function updateTimeDisplay() {
     timeDisplay.textContent = `${formatTime(sourceVideo.currentTime)} / ${formatTime(sourceVideo.duration)}`;
 }
+
+// Edge feather slider listener
+edgeFeatherSlider.addEventListener('input', () => {
+    edgeFeatherVal.textContent = `${edgeFeatherSlider.value}px`;
+});
+
+// Falloff slider listener
+falloffSlider.addEventListener('input', () => {
+    falloffVal.textContent = `${falloffSlider.value}%`;
+});
 
 // Handle Image Upload (Source Face)
 imageInput.addEventListener('change', async (e) => {
@@ -412,14 +430,50 @@ function drawFrame() {
                         y: lm.y * mainCanvas.height
                     }));
 
-                    // Warp the photo face onto the video face
-                    window.FaceWarper.warpFace(
-                        ctx,
-                        faceImage,
-                        srcCache.pixelLandmarks,
-                        videoPixelLandmarks,
-                        srcCache.triangles
-                    );
+                    // Get edge feather setting
+                    const edgeBlur = parseInt(edgeFeatherSlider.value) || 20;
+
+                    // Check if feathering is enabled
+                    const useFeathering = window.FaceBlender && edgeBlur > 0;
+
+                    if (useFeathering) {
+                        // Initialize offscreen canvas if needed
+                        if (!warpCanvas || warpCanvas.width !== mainCanvas.width || warpCanvas.height !== mainCanvas.height) {
+                            warpCanvas = document.createElement('canvas');
+                            warpCanvas.width = mainCanvas.width;
+                            warpCanvas.height = mainCanvas.height;
+                            warpCtx = warpCanvas.getContext('2d');
+                        }
+
+                        // Clear and warp to offscreen canvas
+                        warpCtx.clearRect(0, 0, warpCanvas.width, warpCanvas.height);
+                        window.FaceWarper.warpFace(
+                            warpCtx,
+                            faceImage,
+                            srcCache.pixelLandmarks,
+                            videoPixelLandmarks,
+                            srcCache.triangles
+                        );
+
+                        // Apply edge-feathered blending with falloff
+                        const falloff = parseInt(falloffSlider.value) || 70;
+                        window.FaceBlender.applyFeatheredBlend(
+                            ctx,
+                            warpCanvas,
+                            videoPixelLandmarks,
+                            edgeBlur,
+                            falloff
+                        );
+                    } else {
+                        // Direct warp without feathering
+                        window.FaceWarper.warpFace(
+                            ctx,
+                            faceImage,
+                            srcCache.pixelLandmarks,
+                            videoPixelLandmarks,
+                            srcCache.triangles
+                        );
+                    }
 
                     // Draw triangle mesh overlay if debug enabled
                     if (showTrianglesCheckbox.checked) {

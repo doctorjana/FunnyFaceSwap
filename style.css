@@ -45,6 +45,7 @@ header h1 {
     font-weight: 600;
     background: linear-gradient(135deg, var(--accent-color), #818cf8);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
     margin-bottom: 0.5rem;
 }
@@ -215,6 +216,7 @@ header p {
     outline: none;
     cursor: pointer;
     -webkit-appearance: none;
+    appearance: none;
     accent-color: var(--accent-color);
 }
 
@@ -401,6 +403,97 @@ canvas {
 
 .swap-label:has(input:checked) .checkbox-text {
     color: white;
+}
+
+/* Feathering Controls */
+.feather-controls {
+    width: 100%;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--bg-tertiary);
+}
+
+.controls-subtitle {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.controls-hint {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+    font-style: italic;
+}
+
+.edge-slider {
+    max-width: 400px;
+}
+
+.sliders-row {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.sliders-row .slider-item {
+    flex: 1;
+    min-width: 180px;
+}
+
+.sliders-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.slider-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background-color: var(--bg-tertiary);
+    border-radius: var(--border-radius);
+}
+
+.slider-item label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    min-width: 80px;
+}
+
+.slider-item input[type="range"] {
+    flex-grow: 1;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(56, 189, 248, 0.2);
+    outline: none;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.slider-item input[type="range"]::-webkit-slider-thumb {
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    background: var(--accent-color);
+    cursor: pointer;
+    -webkit-appearance: none;
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.4);
+}
+
+.slider-val {
+    font-family: 'Monaco', 'Consolas', monospace;
+    font-size: 0.8rem;
+    color: var(--accent-color);
+    min-width: 40px;
+    text-align: right;
 }
 
 /* Tablet and below */
