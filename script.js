@@ -11,11 +11,13 @@ function updateLabel(inputId, filename) {
     const label = document.querySelector(`label[for="${inputId}"]`);
     const textSpan = label.querySelector('.text');
     const subTextSpan = label.querySelector('.sub-text');
-    
+
     label.classList.add('active');
     textSpan.textContent = "Selected";
     subTextSpan.textContent = filename;
 }
+
+let renderLoopId;
 
 // Handle Video Upload
 videoInput.addEventListener('change', (e) => {
@@ -24,15 +26,21 @@ videoInput.addEventListener('change', (e) => {
         const url = URL.createObjectURL(file);
         sourceVideo.src = url;
         updateLabel('videoInput', file.name);
-        
-        // When video metadata is loaded, resize canvas
+
+        // When video metadata is loaded, resize canvas and start playback
         sourceVideo.onloadedmetadata = () => {
             mainCanvas.width = sourceVideo.videoWidth;
             mainCanvas.height = sourceVideo.videoHeight;
             placeholder.style.display = 'none';
-            // Draw first frame
-            sourceVideo.currentTime = 0;
-            drawFrame(); // simple initial draw
+
+            sourceVideo.play()
+                .then(() => {
+                    console.log("Video started playing");
+                    startRenderingLoop();
+                })
+                .catch(err => {
+                    console.error("Video play failed:", err);
+                });
         };
     }
 });
@@ -44,27 +52,45 @@ imageInput.addEventListener('change', (e) => {
         const url = URL.createObjectURL(file);
         faceImage.src = url;
         faceImage.onload = () => {
-             updateLabel('imageInput', file.name);
+            updateLabel('imageInput', file.name);
         }
     }
 });
 
-// Simple render loop (mostly static for now)
 function drawFrame() {
-    if (sourceVideo.readyState >= 2) {
-        ctx.drawImage(sourceVideo, 0, 0, mainCanvas.width, mainCanvas.height);
-        
-        // Draw the face image in the corner if it exists (just to show it loaded)
-        if (faceImage.complete && faceImage.naturalHeight !== 0) {
-            const size = Math.min(mainCanvas.width, mainCanvas.height) * 0.2;
-            ctx.drawImage(faceImage, 10, 10, size, size * (faceImage.height / faceImage.width));
-        }
+    ctx.drawImage(sourceVideo, 0, 0, mainCanvas.width, mainCanvas.height);
+
+    // Draw the face image in the corner if it exists (just to show it loaded)
+    if (faceImage.complete && faceImage.naturalHeight !== 0 && faceImage.src) {
+        const size = Math.min(mainCanvas.width, mainCanvas.height) * 0.2;
+        const ratio = faceImage.naturalWidth / faceImage.naturalHeight;
+        ctx.drawImage(faceImage, 10, 10, size * ratio, size); // corrected aspect ratio logic
     }
-    requestAnimationFrame(drawFrame);
 }
 
-// Start video playback when ready (muted) - optional, for now just load it
-sourceVideo.addEventListener('canplay', () => {
-   // sourceVideo.play(); // Auto-play could be annoying or blocked, let's just leave it ready
-   drawFrame();
-});
+function startRenderingLoop() {
+    // Cancel any existing loop to prevent duplicates
+    if (renderLoopId) {
+        if (sourceVideo.requestVideoFrameCallback) {
+            sourceVideo.cancelVideoFrameCallback(renderLoopId);
+        } else {
+            cancelAnimationFrame(renderLoopId);
+        }
+    }
+
+    if ('requestVideoFrameCallback' in sourceVideo) {
+        console.log("Using requestVideoFrameCallback");
+        function loop() {
+            drawFrame();
+            renderLoopId = sourceVideo.requestVideoFrameCallback(loop);
+        }
+        sourceVideo.requestVideoFrameCallback(loop);
+    } else {
+        console.log("Using requestAnimationFrame");
+        function loop() {
+            drawFrame();
+            renderLoopId = requestAnimationFrame(loop);
+        }
+        requestAnimationFrame(loop);
+    }
+}
