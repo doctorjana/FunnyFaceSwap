@@ -226,6 +226,21 @@ canvas {
     font-size: 1rem;
 }
 
+/* Enable Swap toggle - highlighted */
+.swap-label {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(129, 140, 248, 0.2));
+    border-color: var(--accent-color);
+}
+
+.swap-label:has(input:checked) {
+    background: linear-gradient(135deg, var(--accent-color), #818cf8);
+    color: white;
+}
+
+.swap-label:has(input:checked) .checkbox-text {
+    color: white;
+}
+
 /* Tablet and below */
 @media (max-width: 768px) {
     body {

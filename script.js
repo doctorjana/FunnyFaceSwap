@@ -9,6 +9,7 @@ const placeholder = document.getElementById('placeholder');
 const debugModeCheckbox = document.getElementById('debugMode');
 const stableModeCheckbox = document.getElementById('stableMode');
 const showTrianglesCheckbox = document.getElementById('showTriangles');
+const enableSwapCheckbox = document.getElementById('enableSwap');
 const warpFaceBtn = document.getElementById('warpFaceBtn');
 
 // Hidden target image element
@@ -345,8 +346,54 @@ function drawFrame() {
         }
     }
 
-    // Draw the face image in the corner if it exists
-    if (faceImage.complete && faceImage.naturalHeight !== 0 && faceImage.src) {
+    // Perform real-time face swap if enabled
+    if (enableSwapCheckbox.checked &&
+        window.FaceWarper &&
+        window.PhotoProcessor &&
+        window.PhotoProcessor.isProcessed() &&
+        videoLandmarks &&
+        videoLandmarks.length > 0) {
+
+        const srcCache = window.PhotoProcessor.getCache();
+        if (srcCache) {
+            // Process each detected face in the video
+            for (const faceLandmarks of videoLandmarks) {
+                // Get stable landmarks from video face
+                const stableVideoLandmarks = window.FaceLandmarkerModule.getStableLandmarks(faceLandmarks);
+
+                if (stableVideoLandmarks.length === srcCache.pixelLandmarks.length) {
+                    // Convert to pixel coordinates
+                    const videoPixelLandmarks = stableVideoLandmarks.map(lm => ({
+                        x: lm.x * mainCanvas.width,
+                        y: lm.y * mainCanvas.height
+                    }));
+
+                    // Warp the photo face onto the video face
+                    window.FaceWarper.warpFace(
+                        ctx,
+                        faceImage,
+                        srcCache.pixelLandmarks,
+                        videoPixelLandmarks,
+                        srcCache.triangles
+                    );
+
+                    // Draw triangle mesh overlay if debug enabled
+                    if (showTrianglesCheckbox.checked) {
+                        window.PhotoProcessor.drawTriangleMesh(
+                            ctx,
+                            videoPixelLandmarks,
+                            srcCache.triangles,
+                            1, 1,
+                            "#00FFFF"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    // Draw the face image in the corner if it exists (and swap not enabled)
+    if (!enableSwapCheckbox.checked && faceImage.complete && faceImage.naturalHeight !== 0 && faceImage.src) {
         const size = Math.min(mainCanvas.width, mainCanvas.height) * 0.2;
         const ratio = faceImage.naturalWidth / faceImage.naturalHeight;
         const imgX = 10;
@@ -369,8 +416,8 @@ function drawFrame() {
         }
     }
 
-    // Draw landmarks on video frame if debug mode is enabled
-    if (debugModeCheckbox.checked && videoLandmarks && videoLandmarks.length > 0) {
+    // Draw landmarks on video frame if debug mode is enabled (and swap not enabled)
+    if (!enableSwapCheckbox.checked && debugModeCheckbox.checked && videoLandmarks && videoLandmarks.length > 0) {
         for (const faceLandmarks of videoLandmarks) {
             let landmarksToDraw = faceLandmarks;
             if (stableModeCheckbox.checked) {
