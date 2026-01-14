@@ -54,11 +54,48 @@ header p {
     font-size: 1.1rem;
 }
 
-.controls {
+.controls-group {
     display: flex;
     justify-content: center;
-    gap: 2rem;
+    gap: 1.5rem;
     flex-wrap: wrap;
+}
+
+/* Step Styling */
+.step {
+    background-color: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    border: 1px solid var(--bg-tertiary);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
+}
+
+.step-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.step-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, var(--accent-color), #818cf8);
+    color: white;
+    border-radius: 50%;
+    font-weight: 600;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.step-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
 }
 
 /* Custom File Input Styling */
@@ -111,6 +148,13 @@ header p {
     background-color: rgba(56, 189, 248, 0.1);
 }
 
+.viewport-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    width: 100%;
+}
+
 .viewport {
     background-color: #000;
     border-radius: var(--border-radius);
@@ -123,6 +167,122 @@ header p {
     display: flex;
     align-items: center;
     justify-content: center;
+    background-image:
+        radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 100%);
+}
+
+.video-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 1.25rem;
+    background-color: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--bg-tertiary);
+}
+
+.control-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 1.25rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    transition: var(--transition);
+}
+
+.control-btn:hover {
+    background-color: var(--bg-tertiary);
+    transform: scale(1.1);
+}
+
+.slider-container {
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+}
+
+.seek-slider {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--bg-tertiary);
+    outline: none;
+    cursor: pointer;
+    -webkit-appearance: none;
+    accent-color: var(--accent-color);
+}
+
+.seek-slider::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 6px;
+    cursor: pointer;
+    background: var(--bg-tertiary);
+    border-radius: 3px;
+}
+
+.seek-slider::-webkit-slider-thumb {
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    background: var(--accent-color);
+    cursor: pointer;
+    -webkit-appearance: none;
+    margin-top: -5px;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+}
+
+.time-display {
+    font-family: 'Monaco', 'Consolas', monospace;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    min-width: 100px;
+    text-align: right;
+}
+
+/* Advanced Settings */
+.advanced-settings {
+    margin-top: 2rem;
+    background-color: rgba(15, 23, 42, 0.5);
+    border-radius: var(--border-radius);
+    border: 1px dashed var(--bg-tertiary);
+    overflow: hidden;
+}
+
+.advanced-settings summary {
+    padding: 1rem;
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--text-secondary);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: var(--transition);
+}
+
+.advanced-settings summary:hover {
+    color: var(--text-primary);
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.advanced-settings summary::before {
+    content: '▶';
+    font-size: 0.7rem;
+    transition: var(--transition);
+}
+
+.advanced-settings[open] summary::before {
+    transform: rotate(90deg);
+}
+
+.advanced-settings .controls-group {
+    padding: 0 1rem 1.5rem 1rem;
 }
 
 canvas {
@@ -136,6 +296,8 @@ canvas {
     position: absolute;
     color: var(--text-secondary);
     pointer-events: none;
+    font-size: 1.1rem;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 /* Debug Toggle Styling */

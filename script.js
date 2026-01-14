@@ -11,6 +11,9 @@ const stableModeCheckbox = document.getElementById('stableMode');
 const showTrianglesCheckbox = document.getElementById('showTriangles');
 const enableSwapCheckbox = document.getElementById('enableSwap');
 const warpFaceBtn = document.getElementById('warpFaceBtn');
+const playPauseBtn = document.getElementById('playPauseBtn');
+const seekSlider = document.getElementById('seekSlider');
+const timeDisplay = document.getElementById('timeDisplay');
 
 // Hidden target image element
 const targetImage = document.createElement('img');
@@ -65,9 +68,13 @@ videoInput.addEventListener('change', (e) => {
             mainCanvas.height = sourceVideo.videoHeight;
             placeholder.style.display = 'none';
 
+            // Initialize video controls
+            seekSlider.max = sourceVideo.duration;
+            updateTimeDisplay();
+
             sourceVideo.play()
                 .then(() => {
-                    console.log("Video started playing");
+                    playPauseBtn.querySelector('.play-icon').textContent = '⏸️';
                     startRenderingLoop();
                 })
                 .catch(err => {
@@ -76,6 +83,37 @@ videoInput.addEventListener('change', (e) => {
         };
     }
 });
+
+// Video Controls Logic
+playPauseBtn.addEventListener('click', () => {
+    if (sourceVideo.paused) {
+        sourceVideo.play();
+        playPauseBtn.querySelector('.play-icon').textContent = '⏸️';
+    } else {
+        sourceVideo.pause();
+        playPauseBtn.querySelector('.play-icon').textContent = '▶️';
+    }
+});
+
+seekSlider.addEventListener('input', () => {
+    sourceVideo.currentTime = seekSlider.value;
+    updateTimeDisplay();
+    // If paused, trigger a single frame draw to show the seek result
+    if (sourceVideo.paused) {
+        drawFrame();
+    }
+});
+
+function formatTime(seconds) {
+    if (isNaN(seconds)) return "0:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function updateTimeDisplay() {
+    timeDisplay.textContent = `${formatTime(sourceVideo.currentTime)} / ${formatTime(sourceVideo.duration)}`;
+}
 
 // Handle Image Upload (Source Face)
 imageInput.addEventListener('change', async (e) => {
@@ -343,6 +381,12 @@ function drawFrame() {
         if (sourceVideo.currentTime !== lastVideoTime) {
             videoLandmarks = window.FaceLandmarkerModule.detectVideo(sourceVideo, timestamp);
             lastVideoTime = sourceVideo.currentTime;
+
+            // Sync UI controls with current playback time
+            if (!seekSlider.matches(':active')) {
+                seekSlider.value = sourceVideo.currentTime;
+            }
+            updateTimeDisplay();
         }
     }
 

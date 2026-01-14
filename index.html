@@ -19,74 +19,115 @@
         </header>
 
         <main>
-            <div class="controls">
-                <div class="input-group">
-                    <label for="videoInput" class="file-label">
-                        <span class="icon">🎥</span>
-                        <span class="text">Select Video</span>
-                        <span class="sub-text">MP4 or WebM</span>
-                    </label>
-                    <input type="file" id="videoInput" accept="video/mp4, video/webm">
+            <!-- Step 1: Upload Content -->
+            <section class="step" id="step1">
+                <div class="step-header">
+                    <span class="step-number">1</span>
+                    <h2 class="step-title">Upload Content</h2>
                 </div>
+                <div class="controls-group">
+                    <div class="input-group">
+                        <label for="videoInput" class="file-label">
+                            <span class="icon">🎥</span>
+                            <span class="text">Select Video</span>
+                            <span class="sub-text">MP4 or WebM</span>
+                        </label>
+                        <input type="file" id="videoInput" accept="video/mp4, video/webm">
+                    </div>
 
-                <div class="input-group">
-                    <label for="imageInput" class="file-label">
-                        <span class="icon">👤</span>
-                        <span class="text">Source Face</span>
-                        <span class="sub-text">Face to swap in</span>
-                    </label>
-                    <input type="file" id="imageInput" accept="image/png, image/jpeg">
+                    <div class="input-group">
+                        <label for="imageInput" class="file-label">
+                            <span class="icon">👤</span>
+                            <span class="text">Source Face</span>
+                            <span class="sub-text">Face to swap in</span>
+                        </label>
+                        <input type="file" id="imageInput" accept="image/png, image/jpeg">
+                    </div>
                 </div>
+            </section>
 
-                <div class="input-group">
-                    <label for="targetImageInput" class="file-label">
-                        <span class="icon">🎯</span>
-                        <span class="text">Target Image</span>
-                        <span class="sub-text">Face to replace</span>
-                    </label>
-                    <input type="file" id="targetImageInput" accept="image/png, image/jpeg">
+            <!-- Step 2: Swap Settings -->
+            <section class="step" id="step2">
+                <div class="step-header">
+                    <span class="step-number">2</span>
+                    <h2 class="step-title">Swap Settings</h2>
                 </div>
+                <div class="controls-group">
+                    <div class="input-group swap-toggle">
+                        <label for="enableSwap" class="checkbox-label swap-label">
+                            <input type="checkbox" id="enableSwap">
+                            <span class="checkbox-text">🔄 Enable Swap</span>
+                        </label>
+                    </div>
 
-                <div class="input-group warp-button">
-                    <button id="warpFaceBtn" class="action-button" disabled>
-                        <span class="icon">🔄</span>
-                        <span class="text">Warp Face</span>
-                    </button>
+                    <div class="input-group debug-toggle">
+                        <label for="debugMode" class="checkbox-label">
+                            <input type="checkbox" id="debugMode">
+                            <span class="checkbox-text">🔍 Debug Mode</span>
+                        </label>
+                    </div>
+
+                    <div class="input-group stable-toggle">
+                        <label for="stableMode" class="checkbox-label">
+                            <input type="checkbox" id="stableMode">
+                            <span class="checkbox-text">⚖️ Stable Landmarks</span>
+                        </label>
+                    </div>
+
+                    <div class="input-group triangles-toggle">
+                        <label for="showTriangles" class="checkbox-label">
+                            <input type="checkbox" id="showTriangles">
+                            <span class="checkbox-text">🔺 Show Triangles</span>
+                        </label>
+                    </div>
                 </div>
+            </section>
 
-                <div class="input-group debug-toggle">
-                    <label for="debugMode" class="checkbox-label">
-                        <input type="checkbox" id="debugMode">
-                        <span class="checkbox-text">🔍 Debug Mode</span>
-                    </label>
+            <!-- Step 3: Result & Controls -->
+            <section class="step" id="step3">
+                <div class="step-header">
+                    <span class="step-number">3</span>
+                    <h2 class="step-title">Result & Controls</h2>
                 </div>
+                <div class="viewport-container">
+                    <div class="viewport">
+                        <canvas id="mainCanvas"></canvas>
+                        <div id="placeholder" class="placeholder-text">Result will appear here</div>
+                    </div>
 
-                <div class="input-group stable-toggle">
-                    <label for="stableMode" class="checkbox-label">
-                        <input type="checkbox" id="stableMode">
-                        <span class="checkbox-text">⚖️ Stable Landmarks</span>
-                    </label>
+                    <div class="video-controls" id="videoControls">
+                        <button id="playPauseBtn" class="control-btn" title="Play/Pause">
+                            <span class="play-icon">▶️</span>
+                        </button>
+                        <div class="slider-container">
+                            <input type="range" id="seekSlider" class="seek-slider" value="0" min="0" step="0.001">
+                        </div>
+                        <span id="timeDisplay" class="time-display">00:00 / 00:00</span>
+                    </div>
                 </div>
+            </section>
 
-                <div class="input-group triangles-toggle">
-                    <label for="showTriangles" class="checkbox-label">
-                        <input type="checkbox" id="showTriangles">
-                        <span class="checkbox-text">🔺 Show Triangles</span>
-                    </label>
+            <!-- Advanced: Static Photo Swap -->
+            <details class="advanced-settings">
+                <summary>📸 Static Photo Swap (Legacy)</summary>
+                <div class="controls-group">
+                    <div class="input-group">
+                        <label for="targetImageInput" class="file-label">
+                            <span class="icon">🎯</span>
+                            <span class="text">Target Image</span>
+                            <span class="sub-text">Face to replace</span>
+                        </label>
+                        <input type="file" id="targetImageInput" accept="image/png, image/jpeg">
+                    </div>
+
+                    <div class="input-group warp-button">
+                        <button id="warpFaceBtn" class="action-button" disabled>
+                            <span class="icon">🔄</span>
+                            <span class="text">Warp Face</span>
+                        </button>
+                    </div>
                 </div>
-
-                <div class="input-group swap-toggle">
-                    <label for="enableSwap" class="checkbox-label swap-label">
-                        <input type="checkbox" id="enableSwap">
-                        <span class="checkbox-text">🔄 Enable Swap</span>
-                    </label>
-                </div>
-            </div>
-
-            <div class="viewport">
-                <canvas id="mainCanvas"></canvas>
-                <div id="placeholder" class="placeholder-text">Result will appear here</div>
-            </div>
+            </details>
         </main>
 
         <!-- Hidden video element for decoding -->
