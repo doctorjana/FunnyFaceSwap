@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FunnyFaceSwap</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1>FunnyFaceSwap</h1>
+            <p>Select a video and a face to start swapping</p>
+        </header>
+
+        <main>
+            <div class="controls">
+                <div class="input-group">
+                    <label for="videoInput" class="file-label">
+                        <span class="icon">🎥</span>
+                        <span class="text">Select Video</span>
+                        <span class="sub-text">MP4 or WebM</span>
+                    </label>
+                    <input type="file" id="videoInput" accept="video/mp4, video/webm">
+                </div>
+
+                <div class="input-group">
+                    <label for="imageInput" class="file-label">
+                        <span class="icon">👤</span>
+                        <span class="text">Select Face</span>
+                        <span class="sub-text">PNG or JPG</span>
+                    </label>
+                    <input type="file" id="imageInput" accept="image/png, image/jpeg">
+                </div>
+            </div>
+
+            <div class="viewport">
+                <canvas id="mainCanvas"></canvas>
+                <div id="placeholder" class="placeholder-text">Result will appear here</div>
+            </div>
+        </main>
+
+        <!-- Hidden video element for decoding -->
+        <video id="sourceVideo" playsinline muted style="display: none;"></video>
+        <!-- Temporary storage for face image -->
+        <img id="faceImage" style="display: none;">
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
