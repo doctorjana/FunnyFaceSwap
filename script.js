@@ -9,7 +9,8 @@ const placeholder = document.getElementById('placeholder');
 const debugModeCheckbox = document.getElementById('debugMode');
 const stableModeCheckbox = document.getElementById('stableMode');
 const showTrianglesCheckbox = document.getElementById('showTriangles');
-const enableSwapCheckbox = document.getElementById('enableSwap');
+const enableSwapBtn = document.getElementById('enableSwapBtn');
+const swapStatusEl = document.getElementById('swapStatus');
 const warpFaceBtn = document.getElementById('warpFaceBtn');
 const playPauseBtn = document.getElementById('playPauseBtn');
 const seekSlider = document.getElementById('seekSlider');
@@ -48,6 +49,7 @@ let targetCache = null;
 let videoLandmarkCache = new Map(); // Cache for video landmarks per timestamp
 let isExporting = false;
 let exportCancelled = false;
+let isSwapEnabled = false; // Track if face swap is active
 
 // Helper to update asset list & viewport name
 function registerAsset(inputId, filename) {
@@ -132,6 +134,7 @@ videoInput.addEventListener('change', (e) => {
                 .then(() => {
                     playPauseBtn.querySelector('.play-icon').textContent = '⏸️';
                     startRenderingLoop();
+                    updateSwapButtonState();
                 })
                 .catch(err => {
                     console.error("Video play failed:", err);
@@ -421,7 +424,7 @@ async function processExportFrame() {
     }
 
     // Apply swap if possible
-    if (enableSwapCheckbox.checked && currentLandmarks && currentLandmarks.length > 0) {
+    if (isSwapEnabled && currentLandmarks && currentLandmarks.length > 0) {
         const srcCache = window.PhotoProcessor.getCache();
         if (srcCache) {
             for (const faceLandmarks of currentLandmarks) {
@@ -515,6 +518,7 @@ imageInput.addEventListener('change', async (e) => {
                 }
 
                 updateWarpButtonState();
+                updateSwapButtonState();
 
                 // Trigger a canvas redraw if video is not playing
                 if (!sourceVideo.src || sourceVideo.paused) {
@@ -578,6 +582,39 @@ function updateWarpButtonState() {
     const targetReady = targetCache && targetCache.pixelLandmarks;
     warpFaceBtn.disabled = !(sourceReady && targetReady);
 }
+
+// Update swap button enabled state based on video and photo processing
+function updateSwapButtonState() {
+    const videoReady = sourceVideo.src && sourceVideo.readyState >= 2;
+    const photoProcessed = window.PhotoProcessor && window.PhotoProcessor.isProcessed();
+    const canEnable = videoReady && photoProcessed;
+
+    enableSwapBtn.disabled = !canEnable;
+
+    // Update status message
+    if (!sourceVideo.src) {
+        swapStatusEl.textContent = 'Import video and photo to enable';
+    } else if (!photoProcessed) {
+        swapStatusEl.textContent = 'Import and process a face photo';
+    } else if (isSwapEnabled) {
+        swapStatusEl.textContent = 'Face swap active — click to disable';
+    } else {
+        swapStatusEl.textContent = 'Ready — click to apply face swap';
+    }
+}
+
+// Handle Enable Swap button click
+enableSwapBtn.addEventListener('click', () => {
+    if (enableSwapBtn.disabled) return;
+    isSwapEnabled = !isSwapEnabled;
+    enableSwapBtn.classList.toggle('active', isSwapEnabled);
+    enableSwapBtn.querySelector('.btn-text').textContent = isSwapEnabled ? 'Disable Face Swap' : 'Apply Face Swap';
+    updateSwapButtonState();
+    // Redraw if paused
+    if (!sourceVideo.src || sourceVideo.paused) {
+        redrawCanvas();
+    }
+});
 
 // Handle Warp Face button click
 warpFaceBtn.addEventListener('click', () => {
@@ -765,7 +802,7 @@ function drawFrame() {
     }
 
     // Perform real-time face swap if enabled
-    if (enableSwapCheckbox.checked &&
+    if (isSwapEnabled &&
         window.FaceWarper &&
         window.PhotoProcessor &&
         window.PhotoProcessor.isProcessed() &&
@@ -868,7 +905,7 @@ function drawFrame() {
     }
 
     // Draw the face image in the corner if it exists (and swap not enabled)
-    if (!enableSwapCheckbox.checked && faceImage.complete && faceImage.naturalHeight !== 0 && faceImage.src) {
+    if (!isSwapEnabled && faceImage.complete && faceImage.naturalHeight !== 0 && faceImage.src) {
         const size = Math.min(mainCanvas.width, mainCanvas.height) * 0.2;
         const ratio = faceImage.naturalWidth / faceImage.naturalHeight;
         const imgX = 10;
@@ -892,7 +929,7 @@ function drawFrame() {
     }
 
     // Draw landmarks on video frame if debug mode is enabled (and swap not enabled)
-    if (!enableSwapCheckbox.checked && debugModeCheckbox.checked && videoLandmarks && videoLandmarks.length > 0) {
+    if (!isSwapEnabled && debugModeCheckbox.checked && videoLandmarks && videoLandmarks.length > 0) {
         for (const faceLandmarks of videoLandmarks) {
             let landmarksToDraw = faceLandmarks;
             if (stableModeCheckbox.checked) {

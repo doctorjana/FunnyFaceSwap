@@ -20,10 +20,6 @@
                 <h1>FunnyFaceSwap <span>Pro</span></h1>
             </div>
             <div class="header-actions">
-                <button id="enableSwapBtn" class="toggle-btn">
-                    <input type="checkbox" id="enableSwap">
-                    <span class="toggle-label">Enable Face Swap</span>
-                </button>
                 <button id="exportBtn" class="action-btn primary-btn">
                     <span class="btn-icon">📥</span>
                     <span class="btn-text">Export Video</span>
@@ -115,6 +111,14 @@
                     <h2>Effect Controls</h2>
                 </div>
                 <div class="panel-content">
+                    <!-- Face Swap Action -->
+                    <div class="control-group swap-action-group">
+                        <button id="enableSwapBtn" class="swap-action-btn" disabled>
+                            <span class="btn-icon">🎭</span>
+                            <span class="btn-text">Apply Face Swap</span>
+                        </button>
+                        <p class="swap-status" id="swapStatus">Import video and photo to enable</p>
+                    </div>
                     <!-- Face Settings -->
                     <div class="control-group">
                         <h3>🤖 Detection & Stability</h3>

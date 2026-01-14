@@ -540,3 +540,59 @@ body {
     cursor: not-allowed;
     transform: none;
 }
+
+/* Face Swap Action Button */
+.swap-action-group {
+    text-align: center;
+}
+
+.swap-action-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-radius: var(--border-radius);
+    border: 2px solid var(--border-color);
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.swap-action-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.swap-action-btn:not(:disabled):hover {
+    border-color: var(--accent-color);
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--text-primary);
+}
+
+.swap-action-btn.active {
+    background: linear-gradient(135deg, var(--accent-color), #6366f1);
+    border-color: transparent;
+    color: white;
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4), 0 0 20px rgba(59, 130, 246, 0.2);
+}
+
+.swap-action-btn.active:hover {
+    background: linear-gradient(135deg, var(--accent-hover), #4f46e5);
+    transform: translateY(-1px);
+}
+
+.swap-action-btn .btn-icon {
+    font-size: 1.1rem;
+}
+
+.swap-status {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.5rem;
+    font-style: italic;
+}
