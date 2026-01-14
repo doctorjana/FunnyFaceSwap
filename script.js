@@ -40,6 +40,7 @@ let videoLandmarks = null;
 let imageLandmarks = null;
 let targetLandmarks = null;
 let targetCache = null;
+let videoLandmarkCache = new Map(); // Cache for video landmarks per timestamp
 
 // Helper to update label text
 function updateLabel(inputId, filename) {
@@ -84,6 +85,9 @@ videoInput.addEventListener('change', (e) => {
             // Initialize video controls
             seekSlider.max = sourceVideo.duration;
             updateTimeDisplay();
+
+            // Clear video landmark cache when new video loaded
+            videoLandmarkCache.clear();
 
             sourceVideo.play()
                 .then(() => {
@@ -407,10 +411,21 @@ function drawFrame() {
     // Draw video frame
     ctx.drawImage(sourceVideo, 0, 0, mainCanvas.width, mainCanvas.height);
 
-    // Detect landmarks on video frame (only if time has changed)
+    // Detect landmarks on video frame (check cache first)
     if (window.FaceLandmarkerModule && window.FaceLandmarkerModule.isReady()) {
         if (sourceVideo.currentTime !== lastVideoTime) {
-            videoLandmarks = window.FaceLandmarkerModule.detectVideo(sourceVideo, timestamp);
+            const timeKey = Math.floor(sourceVideo.currentTime * 1000); // ms precision key
+
+            if (videoLandmarkCache.has(timeKey)) {
+                videoLandmarks = videoLandmarkCache.get(timeKey);
+            } else {
+                videoLandmarks = window.FaceLandmarkerModule.detectVideo(sourceVideo, timestamp);
+                // Only cache if landmarks were actually found
+                if (videoLandmarks && videoLandmarks.length > 0) {
+                    videoLandmarkCache.set(timeKey, videoLandmarks);
+                }
+            }
+
             lastVideoTime = sourceVideo.currentTime;
 
             // Sync UI controls with current playback time
