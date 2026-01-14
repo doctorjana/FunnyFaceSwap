@@ -189,12 +189,33 @@ contrastSlider.addEventListener('input', () => {
     contrastVal.textContent = contrastSlider.value;
 });
 
+// Helper: Wait for valid video data
+function waitForVideoData(video) {
+    return new Promise(resolve => {
+        if (video.readyState >= 2) { // HAVE_CURRENT_DATA
+            resolve();
+        } else {
+            const check = () => {
+                if (video.readyState >= 2) {
+                    video.removeEventListener('canplay', check);
+                    resolve();
+                }
+            };
+            video.addEventListener('canplay', check);
+        }
+    });
+}
+
+
 // Video Export Logic
+let lastGoodLandmarks = null;
+
 async function exportVideo() {
     if (isExporting || !sourceVideo.src || sourceVideo.duration === 0) return;
 
     isExporting = true;
     exportCancelled = false;
+    lastGoodLandmarks = null; // Reset persistence
 
     // UI Feedback
     exportModal.classList.add('active');
@@ -215,36 +236,36 @@ async function exportVideo() {
             // -------------------------------------------------------------
             console.log("Using WebCodecs (True Offline Export)");
 
-            // Import WebMMuxer dynamically
-            const { Muxer: WebMMuxer, ArrayBufferTarget } = await import("webm-muxer");
+            // Import Muxer dynamically (MP4)
+            const { Muxer, ArrayBufferTarget } = await import("mp4-muxer");
 
             const fps = 30;
             const totalDuration = sourceVideo.duration;
             const totalFrames = Math.floor(totalDuration * fps);
             const frameTime = 1 / fps;
 
-            // Setup Muxer
-            const muxer = new WebMMuxer({
+            // Setup Muxer (MP4)
+            const muxer = new Muxer({
                 target: new ArrayBufferTarget(),
                 video: {
-                    codec: 'V_VP9',
+                    codec: 'avc',
                     width: mainCanvas.width,
-                    height: mainCanvas.height,
-                    frameRate: fps
-                }
+                    height: mainCanvas.height
+                },
+                fastStart: 'in-memory'
             });
 
-            // Setup VideoEncoder
+            // Setup VideoEncoder (H.264 / AVC)
             const encoder = new VideoEncoder({
                 output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
                 error: (e) => console.error("Encoder error:", e)
             });
 
             encoder.configure({
-                codec: 'vp09.00.10.08', // VP9 Profile 0, Level 1, BitDepth 8
+                codec: 'avc1.4d0033', // H.264 Main Profile Level 5.1 (Supports up to 4K)
                 width: mainCanvas.width,
                 height: mainCanvas.height,
-                bitrate: 5_000_000, // 5 Mbps
+                bitrate: 10_000_000,
                 framerate: fps
             });
 
@@ -264,12 +285,17 @@ async function exportVideo() {
                     sourceVideo.addEventListener('seeked', onSeeked);
                 });
 
+                // Wait for actual frame data to be ready
+                await waitForVideoData(sourceVideo);
+
                 // Process Frame (Landmarks + Swap)
                 await processExportFrame();
 
                 // Create VideoFrame from Canvas
+                const frameDurationMicros = (1 / fps) * 1_000_000;
                 const frame = new VideoFrame(mainCanvas, {
-                    timestamp: i * (1000 / fps) * 1000 // microseconds
+                    timestamp: i * frameDurationMicros, // microseconds
+                    duration: frameDurationMicros
                 });
 
                 // Encode
@@ -288,11 +314,11 @@ async function exportVideo() {
             const buffer = muxer.target.buffer;
 
             if (!exportCancelled) {
-                const blob = new Blob([buffer], { type: 'video/webm' });
+                const blob = new Blob([buffer], { type: 'video/mp4' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `FaceSwap_Export_${Date.now()}.webm`;
+                a.download = `FaceSwap_Export_${Date.now()}.mp4`;
                 a.click();
             }
 
@@ -360,76 +386,89 @@ async function exportVideo() {
 }
 
 async function processExportFrame() {
-    return new Promise(resolve => {
-        // Draw the current video frame to the canvas
-        ctx.drawImage(sourceVideo, 0, 0, mainCanvas.width, mainCanvas.height);
+    // Draw the current video frame to the canvas
+    ctx.drawImage(sourceVideo, 0, 0, mainCanvas.width, mainCanvas.height);
 
-        // Use a timestamp based on video time
-        const timestamp = sourceVideo.currentTime * 1000;
+    // Use a timestamp based on video time
+    const timestamp = sourceVideo.currentTime * 1000;
 
-        // Check cache or detect
-        let currentLandmarks = null;
-        const timeKey = Math.floor(sourceVideo.currentTime * 1000);
+    // Check cache or detect
+    let currentLandmarks = null;
+    const timeKey = Math.floor(sourceVideo.currentTime * 1000);
 
-        if (videoLandmarkCache.has(timeKey)) {
-            currentLandmarks = videoLandmarkCache.get(timeKey);
-        } else if (window.FaceLandmarkerModule && window.FaceLandmarkerModule.isReady()) {
-            currentLandmarks = window.FaceLandmarkerModule.detectVideo(sourceVideo, timestamp);
+    if (videoLandmarkCache.has(timeKey)) {
+        currentLandmarks = videoLandmarkCache.get(timeKey);
+    } else if (window.FaceLandmarkerModule && window.FaceLandmarkerModule.isReady()) {
+        // "Image Mode" for Export: Detect on specific pixels (accurate but slower)
+        // We pass mainCanvas because we just drew the video frame onto it
+        for (let attempt = 0; attempt < 3; attempt++) {
+            currentLandmarks = await window.FaceLandmarkerModule.detectImage(mainCanvas);
             if (currentLandmarks && currentLandmarks.length > 0) {
                 videoLandmarkCache.set(timeKey, currentLandmarks);
+                break; // Found it!
             }
+            // Wait a bit before retry
+            if (attempt < 2) await new Promise(r => setTimeout(r, 50));
         }
+    }
 
-        // Apply swap if possible
-        if (enableSwapCheckbox.checked && currentLandmarks && currentLandmarks.length > 0) {
-            const srcCache = window.PhotoProcessor.getCache();
-            if (srcCache) {
-                for (const faceLandmarks of currentLandmarks) {
-                    const stableVideoLandmarks = window.FaceLandmarkerModule.getStableLandmarks(faceLandmarks);
-                    if (stableVideoLandmarks.length === srcCache.pixelLandmarks.length) {
-                        const videoPixelLandmarks = stableVideoLandmarks.map(lm => ({
-                            x: lm.x * mainCanvas.width,
-                            y: lm.y * mainCanvas.height
-                        }));
+    // Persistence Logic: Use last known good landmarks if current detection fails
+    if (currentLandmarks && currentLandmarks.length > 0) {
+        lastGoodLandmarks = currentLandmarks;
+    } else if (lastGoodLandmarks) {
+        // console.log("Using persistent landmarks for frame at", timestamp);
+        currentLandmarks = lastGoodLandmarks;
+    }
 
-                        // Prepare warp canvas
-                        if (!warpCanvas || warpCanvas.width !== mainCanvas.width || warpCanvas.height !== mainCanvas.height) {
-                            warpCanvas = document.createElement('canvas');
-                            warpCanvas.width = mainCanvas.width;
-                            warpCanvas.height = mainCanvas.height;
-                            warpCtx = warpCanvas.getContext('2d');
-                        }
-                        warpCtx.clearRect(0, 0, warpCanvas.width, warpCanvas.height);
+    // Apply swap if possible
+    if (enableSwapCheckbox.checked && currentLandmarks && currentLandmarks.length > 0) {
+        const srcCache = window.PhotoProcessor.getCache();
+        if (srcCache) {
+            for (const faceLandmarks of currentLandmarks) {
+                const stableVideoLandmarks = window.FaceLandmarkerModule.getStableLandmarks(faceLandmarks);
+                if (stableVideoLandmarks.length === srcCache.pixelLandmarks.length) {
+                    const videoPixelLandmarks = stableVideoLandmarks.map(lm => ({
+                        x: lm.x * mainCanvas.width,
+                        y: lm.y * mainCanvas.height
+                    }));
 
-                        // Warp
-                        window.FaceWarper.warpFace(warpCtx, faceImage, srcCache.pixelLandmarks, videoPixelLandmarks, srcCache.triangles);
-
-                        // Color Match
-                        if (autoMatchCheckbox.checked) {
-                            const sourceStats = window.FaceBlender.getColorStats(warpCtx, videoPixelLandmarks, warpCanvas.width, warpCanvas.height);
-                            const targetStats = window.FaceBlender.getColorStats(ctx, videoPixelLandmarks, mainCanvas.width, mainCanvas.height);
-                            if (sourceStats && targetStats) {
-                                window.FaceBlender.matchColorStats(warpCtx, warpCanvas.width, warpCanvas.height, sourceStats, targetStats);
-                            }
-                        }
-
-                        // Manual Adjust
-                        const b = parseInt(brightnessSlider.value) || 0;
-                        const c = parseInt(contrastSlider.value) || 0;
-                        if (b !== 0 || c !== 0) window.FaceBlender.adjustColor(warpCtx, warpCanvas.width, warpCanvas.height, b, c);
-
-                        // Blend
-                        const edgeBlur = parseInt(edgeFeatherSlider.value) || 20;
-                        const falloff = parseInt(falloffSlider.value) || 70;
-                        window.FaceBlender.applyFeatheredBlend(ctx, warpCanvas, videoPixelLandmarks, edgeBlur, falloff);
+                    // Prepare warp canvas
+                    if (!warpCanvas || warpCanvas.width !== mainCanvas.width || warpCanvas.height !== mainCanvas.height) {
+                        warpCanvas = document.createElement('canvas');
+                        warpCanvas.width = mainCanvas.width;
+                        warpCanvas.height = mainCanvas.height;
+                        warpCtx = warpCanvas.getContext('2d');
                     }
+                    warpCtx.clearRect(0, 0, warpCanvas.width, warpCanvas.height);
+
+                    // Warp
+                    window.FaceWarper.warpFace(warpCtx, faceImage, srcCache.pixelLandmarks, videoPixelLandmarks, srcCache.triangles);
+
+                    // Color Match
+                    if (autoMatchCheckbox.checked) {
+                        const sourceStats = window.FaceBlender.getColorStats(warpCtx, videoPixelLandmarks, warpCanvas.width, warpCanvas.height);
+                        const targetStats = window.FaceBlender.getColorStats(ctx, videoPixelLandmarks, mainCanvas.width, mainCanvas.height);
+                        if (sourceStats && targetStats) {
+                            window.FaceBlender.matchColorStats(warpCtx, warpCanvas.width, warpCanvas.height, sourceStats, targetStats);
+                        }
+                    }
+
+                    // Manual Adjust
+                    const b = parseInt(brightnessSlider.value) || 0;
+                    const c = parseInt(contrastSlider.value) || 0;
+                    if (b !== 0 || c !== 0) window.FaceBlender.adjustColor(warpCtx, warpCanvas.width, warpCanvas.height, b, c);
+
+                    // Blend
+                    const edgeBlur = parseInt(edgeFeatherSlider.value) || 20;
+                    const falloff = parseInt(falloffSlider.value) || 70;
+                    window.FaceBlender.applyFeatheredBlend(ctx, warpCanvas, videoPixelLandmarks, edgeBlur, falloff);
                 }
             }
         }
+    }
 
-        // Give the browser a moment to finalize the draw
-        requestAnimationFrame(() => resolve());
-    });
+    // Give the browser a moment to finalize the draw
+    return new Promise(resolve => requestAnimationFrame(() => resolve()));
 }
 
 exportBtn.addEventListener('click', exportVideo);
