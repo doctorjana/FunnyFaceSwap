@@ -97,6 +97,25 @@ async function initApp() {
         });
     });
 
+    // Sample asset click handlers
+    document.querySelectorAll('.sample-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const src = item.dataset.src;
+            if (!src) return;
+
+            // Highlight the clicked item
+            item.parentElement.querySelectorAll('.sample-item').forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+
+            // Determine if it's a video or photo based on the path
+            if (src.includes('/videos/') || src.endsWith('.mp4') || src.endsWith('.webm')) {
+                loadSampleVideo(src, item.textContent);
+            } else if (src.includes('/photos/') || src.endsWith('.jpg') || src.endsWith('.png')) {
+                loadSamplePhoto(src, item.textContent);
+            }
+        });
+    });
+
     if (window.FaceLandmarkerModule) {
         const success = await window.FaceLandmarkerModule.init();
         if (success) {
@@ -107,6 +126,75 @@ async function initApp() {
     } else {
         console.warn("FaceLandmarkerModule not found.");
     }
+}
+
+// Load a sample video from the samples folder
+function loadSampleVideo(src, filename) {
+    console.log(`Loading sample video: ${src}`);
+    sourceVideo.src = src;
+    registerAsset('videoInput', filename);
+
+    sourceVideo.onloadedmetadata = () => {
+        mainCanvas.width = sourceVideo.videoWidth;
+        mainCanvas.height = sourceVideo.videoHeight;
+        placeholder.style.display = 'none';
+
+        seekSlider.max = sourceVideo.duration;
+        updateTimeDisplay();
+        videoLandmarkCache.clear();
+
+        sourceVideo.play()
+            .then(() => {
+                playPauseBtn.querySelector('.play-icon').textContent = '⏸️';
+                startRenderingLoop();
+                updateSwapButtonState();
+            })
+            .catch(err => {
+                console.error("Video play failed:", err);
+            });
+    };
+}
+
+// Load a sample photo from the samples folder
+async function loadSamplePhoto(src, filename) {
+    console.log(`Loading sample photo: ${src}`);
+    faceImage.src = src;
+
+    faceImage.onload = async () => {
+        registerAsset('imageInput', filename);
+
+        if (window.PhotoProcessor) {
+            window.PhotoProcessor.clearCache();
+        }
+
+        if (window.FaceLandmarkerModule && window.FaceLandmarkerModule.isReady()) {
+            imageLandmarks = await window.FaceLandmarkerModule.detectImage(faceImage);
+            if (imageLandmarks && imageLandmarks.length > 0) {
+                console.log(`Detected ${imageLandmarks[0].length} landmarks on source face`);
+
+                if (window.PhotoProcessor) {
+                    const cache = window.PhotoProcessor.preprocess(
+                        imageLandmarks[0],
+                        faceImage.naturalWidth,
+                        faceImage.naturalHeight
+                    );
+                    if (cache) {
+                        console.log("Source photo preprocessed and cached successfully");
+                    }
+                }
+            } else {
+                console.log("No face detected in source image");
+                imageLandmarks = null;
+            }
+
+            updateWarpButtonState();
+            updateSwapButtonState();
+
+            if (!sourceVideo.src || sourceVideo.paused) {
+                redrawCanvas();
+            }
+        }
+    };
 }
 
 // Handle Video Upload
