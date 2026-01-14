@@ -206,72 +206,49 @@ async function exportVideo() {
     if (renderLoopId) cancelAnimationFrame(renderLoopId);
 
     try {
-        // Detect if manual frame request is supported (Firefox lacks this)
-        const testStream = mainCanvas.captureStream(0);
-        const manualFrameSupported = typeof testStream.getVideoTracks()[0].requestFrame === 'function';
+        // Check for WebCodecs support
+        const supportsWebCodecs = typeof VideoEncoder !== 'undefined' && typeof VideoFrame !== 'undefined';
 
-        let stream;
-        if (manualFrameSupported) {
-            stream = mainCanvas.captureStream(0); // Manual capture
-        } else {
-            stream = mainCanvas.captureStream(30); // Auto capture (Real-time fallback)
-            console.warn("Manual frame capture not supported. Falling back to real-time recording.");
-        }
+        if (supportsWebCodecs) {
+            // -------------------------------------------------------------
+            // METHOD 1: WebCodecs + WebMMuxer (True Offline Rendering)
+            // -------------------------------------------------------------
+            console.log("Using WebCodecs (True Offline Export)");
 
-        // Find best supported MIME type
-        const types = [
-            'video/webm;codecs=vp9,opus',
-            'video/webm;codecs=vp9',
-            'video/webm;codecs=vp8',
-            'video/webm',
-            'video/mp4'
-        ];
+            // Import WebMMuxer dynamically
+            const { Muxer: WebMMuxer, ArrayBufferTarget } = await import("webm-muxer");
 
-        let supportedType = '';
-        for (const type of types) {
-            if (MediaRecorder.isTypeSupported(type)) {
-                supportedType = type;
-                break;
-            }
-        }
+            const fps = 30;
+            const totalDuration = sourceVideo.duration;
+            const totalFrames = Math.floor(totalDuration * fps);
+            const frameTime = 1 / fps;
 
-        console.log("Using supported export format:", supportedType || "Default");
+            // Setup Muxer
+            const muxer = new WebMMuxer({
+                target: new ArrayBufferTarget(),
+                video: {
+                    codec: 'V_VP9',
+                    width: mainCanvas.width,
+                    height: mainCanvas.height,
+                    frameRate: fps
+                }
+            });
 
-        const recorder = new MediaRecorder(stream, supportedType ? {
-            mimeType: supportedType,
-            bitsPerSecond: 10000000 // 10Mbps
-        } : {});
+            // Setup VideoEncoder
+            const encoder = new VideoEncoder({
+                output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+                error: (e) => console.error("Encoder error:", e)
+            });
 
-        const chunks = [];
-        recorder.ondataavailable = e => chunks.push(e.data);
+            encoder.configure({
+                codec: 'vp09.00.10.08', // VP9 Profile 0, Level 1, BitDepth 8
+                width: mainCanvas.width,
+                height: mainCanvas.height,
+                bitrate: 5_000_000, // 5 Mbps
+                framerate: fps
+            });
 
-        const fps = 30; // Standardize export FPS
-        const totalDuration = sourceVideo.duration;
-        const totalFrames = Math.floor(totalDuration * fps);
-        const frameTime = 1 / fps;
-
-        recorder.onstop = () => {
-            if (exportCancelled) return;
-
-            const mimeType = recorder.mimeType || 'video/webm';
-            const extension = mimeType.includes('mp4') ? 'mp4' : 'webm';
-
-            const blob = new Blob(chunks, { type: mimeType });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `FaceSwap_Export_${Date.now()}.${extension}`;
-            a.click();
-
-            exportModal.classList.remove('active');
-            isExporting = false;
-            startRenderingLoop(); // Resume preview
-        };
-
-        recorder.start();
-
-        if (manualFrameSupported) {
-            // High-quality Offline Rendering (Chrome/Edge)
+            // Frame Loop
             for (let i = 0; i <= totalFrames; i++) {
                 if (exportCancelled) break;
 
@@ -287,35 +264,88 @@ async function exportVideo() {
                     sourceVideo.addEventListener('seeked', onSeeked);
                 });
 
-                // Process frame
+                // Process Frame (Landmarks + Swap)
                 await processExportFrame();
 
-                // Capture
-                stream.getVideoTracks()[0].requestFrame();
+                // Create VideoFrame from Canvas
+                const frame = new VideoFrame(mainCanvas, {
+                    timestamp: i * (1000 / fps) * 1000 // microseconds
+                });
+
+                // Encode
+                encoder.encode(frame, { keyFrame: i % 30 === 0 });
+                frame.close();
 
                 // Update UI
                 const percent = (i / totalFrames) * 100;
                 exportProgress.style.width = `${percent}%`;
                 exportStatus.textContent = `Rendering frame ${i} / ${totalFrames}...`;
             }
-            recorder.stop();
+
+            // Finish
+            await encoder.flush();
+            muxer.finalize();
+            const buffer = muxer.target.buffer;
+
+            if (!exportCancelled) {
+                const blob = new Blob([buffer], { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `FaceSwap_Export_${Date.now()}.webm`;
+                a.click();
+            }
+
+            exportModal.classList.remove('active');
+            isExporting = false;
+            startRenderingLoop();
+
         } else {
-            // Real-time Recording Fallback (Firefox)
+            // -------------------------------------------------------------
+            // METHOD 2: Real-time MediaRecorder Fallback
+            // -------------------------------------------------------------
+            console.log("Using MediaRecorder Fallback (Real-Time)");
+
+            const stream = mainCanvas.captureStream(30);
+            const mimeType = 'video/webm;codecs=vp8'; // Safer fallback
+
+            const recorder = new MediaRecorder(stream, {
+                mimeType: MediaRecorder.isTypeSupported(mimeType) ? mimeType : 'video/webm',
+                bitsPerSecond: 5000000
+            });
+
+            const chunks = [];
+            recorder.ondataavailable = e => chunks.push(e.data);
+
+            recorder.onstop = () => {
+                if (exportCancelled) return;
+                const blob = new Blob(chunks, { type: recorder.mimeType });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `FaceSwap_Export_${Date.now()}.webm`;
+                a.click();
+
+                exportModal.classList.remove('active');
+                isExporting = false;
+                startRenderingLoop();
+            };
+
             sourceVideo.currentTime = 0;
-            // Use the main loop for rendering
             startRenderingLoop();
             sourceVideo.play();
+            recorder.start();
 
             const checkEnd = setInterval(() => {
-                const percent = (sourceVideo.currentTime / totalDuration) * 100;
+                const percent = (sourceVideo.currentTime / sourceVideo.duration) * 100;
                 exportProgress.style.width = `${percent}%`;
                 exportStatus.textContent = `Recording... ${Math.round(percent)}%`;
 
-                if (sourceVideo.ended || sourceVideo.currentTime >= totalDuration || exportCancelled) {
+                if (sourceVideo.ended || sourceVideo.currentTime >= sourceVideo.duration || exportCancelled) {
                     clearInterval(checkEnd);
                     recorder.stop();
                     sourceVideo.pause();
-                    cancelAnimationFrame(renderLoopId); // Stop loop
+                    cancelAnimationFrame(renderLoopId);
                 }
             }, 100);
         }

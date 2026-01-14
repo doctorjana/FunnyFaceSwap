@@ -19,11 +19,11 @@ async function initFaceLandmarker() {
     try {
         console.log("Initializing FaceLandmarker...");
         const { FaceLandmarker, FilesetResolver } = await import(
-            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest"
+            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8"
         );
 
         const vision = await FilesetResolver.forVisionTasks(
-            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
+            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm"
         );
 
         faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
