@@ -4,184 +4,187 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FunnyFaceSwap</title>
+    <title>FunnyFaceSwap Pro - Editor</title>
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
 </head>
 
-<body>
-    <div class="app-container">
-        <header>
-            <h1>FunnyFaceSwap</h1>
-            <p>Select a video and a face to start swapping</p>
+<body class="pro-editor">
+    <div class="editor-container">
+        <!-- Top Navigation / Header -->
+        <header class="editor-header">
+            <div class="logo">
+                <span class="logo-icon">🎭</span>
+                <h1>FunnyFaceSwap <span>Pro</span></h1>
+            </div>
+            <div class="header-actions">
+                <button id="enableSwapBtn" class="toggle-btn">
+                    <input type="checkbox" id="enableSwap">
+                    <span class="toggle-label">Enable Face Swap</span>
+                </button>
+            </div>
         </header>
 
-        <main>
-            <!-- Step 1: Upload Content -->
-            <section class="step" id="step1">
-                <div class="step-header">
-                    <span class="step-number">1</span>
-                    <h2 class="step-title">Upload Content</h2>
+        <div class="middle-section">
+            <!-- Left Panel: Project Assets -->
+            <aside class="panel assets-panel">
+                <div class="panel-header">
+                    <h2>Project Assets</h2>
                 </div>
-                <div class="controls-group">
-                    <div class="input-group">
-                        <label for="videoInput" class="file-label">
-                            <span class="icon">🎥</span>
-                            <span class="text">Select Video</span>
-                            <span class="sub-text">MP4 or WebM</span>
-                        </label>
-                        <input type="file" id="videoInput" accept="video/mp4, video/webm">
+                <div class="panel-content">
+                    <div class="asset-tabs">
+                        <button class="tab-btn active" data-tab="videos">Videos</button>
+                        <button class="tab-btn" data-tab="photos">Photos</button>
                     </div>
 
-                    <div class="input-group">
-                        <label for="imageInput" class="file-label">
-                            <span class="icon">👤</span>
-                            <span class="text">Source Face</span>
-                            <span class="sub-text">Face to swap in</span>
-                        </label>
-                        <input type="file" id="imageInput" accept="image/png, image/jpeg">
-                    </div>
-                </div>
-            </section>
-
-            <!-- Step 2: Swap Settings -->
-            <section class="step" id="step2">
-                <div class="step-header">
-                    <span class="step-number">2</span>
-                    <h2 class="step-title">Swap Settings</h2>
-                </div>
-                <div class="controls-group">
-                    <div class="input-group swap-toggle">
-                        <label for="enableSwap" class="checkbox-label swap-label">
-                            <input type="checkbox" id="enableSwap">
-                            <span class="checkbox-text">🔄 Enable Swap</span>
-                        </label>
-                    </div>
-
-                    <div class="input-group debug-toggle">
-                        <label for="debugMode" class="checkbox-label">
-                            <input type="checkbox" id="debugMode">
-                            <span class="checkbox-text">🔍 Debug Mode</span>
-                        </label>
-                    </div>
-
-                    <div class="input-group stable-toggle">
-                        <label for="stableMode" class="checkbox-label">
-                            <input type="checkbox" id="stableMode">
-                            <span class="checkbox-text">⚖️ Stable Landmarks</span>
-                        </label>
-                    </div>
-
-                    <div class="input-group triangles-toggle">
-                        <label for="showTriangles" class="checkbox-label">
-                            <input type="checkbox" id="showTriangles">
-                            <span class="checkbox-text">🔺 Show Triangles</span>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Feathering Controls -->
-                <div class="feather-controls">
-                    <h3 class="controls-subtitle">🪶 Edge Feathering</h3>
-                    <p class="controls-hint">Adjust transparency: more opaque center, more transparent edges</p>
-                    <div class="sliders-row">
-                        <div class="slider-item">
-                            <label for="edgeFeather">Edge Blur</label>
-                            <input type="range" id="edgeFeather" min="0" max="50" value="20" step="1">
-                            <span id="edgeFeatherVal" class="slider-val">20px</span>
+                    <div class="tab-content active" id="videos-tab">
+                        <div class="upload-area">
+                            <label for="videoInput" class="asset-upload-label">
+                                <span class="upload-icon">🎥</span>
+                                <span>Import Video</span>
+                            </label>
+                            <input type="file" id="videoInput" accept="video/mp4, video/webm" hidden>
                         </div>
-                        <div class="slider-item">
-                            <label for="falloffSlider">Falloff</label>
-                            <input type="range" id="falloffSlider" min="0" max="100" value="70" step="5">
-                            <span id="falloffVal" class="slider-val">70%</span>
+                        <div class="asset-list" id="videoList">
+                            <p class="empty-hint">Samples folder: <code>/samples/videos/</code></p>
+                            <!-- Injected Asset Items -->
                         </div>
                     </div>
-                </div>
 
-                <!-- Color Correction Controls -->
-                <div class="color-controls">
-                    <h3 class="controls-subtitle">🎨 Color Correction</h3>
-
-                    <div class="input-group auto-match-group">
-                        <label for="autoMatchColor" class="checkbox-label match-label">
-                            <input type="checkbox" id="autoMatchColor">
-                            <span class="checkbox-text">✨ Auto Match Lighting</span>
-                        </label>
-                    </div>
-
-                    <div class="sliders-row">
-                        <div class="slider-item">
-                            <label for="brightnessSlider">Brightness</label>
-                            <input type="range" id="brightnessSlider" min="-100" max="100" value="0" step="1">
-                            <span id="brightnessVal" class="slider-val">0</span>
+                    <div class="tab-content" id="photos-tab">
+                        <div class="upload-area">
+                            <label for="imageInput" class="asset-upload-label">
+                                <span class="upload-icon">🖼️</span>
+                                <span>Import Face</span>
+                            </label>
+                            <input type="file" id="imageInput" accept="image/png, image/jpeg" hidden>
                         </div>
-                        <div class="slider-item">
-                            <label for="contrastSlider">Contrast</label>
-                            <input type="range" id="contrastSlider" min="-100" max="100" value="0" step="1">
-                            <span id="contrastVal" class="slider-val">0</span>
+                        <div class="asset-list" id="photoList">
+                            <p class="empty-hint">Samples folder: <code>/samples/photos/</code></p>
+                            <!-- Injected Asset Items -->
                         </div>
                     </div>
-                </div>
-            </section>
 
-            <!-- Step 3: Result & Controls -->
-            <section class="step" id="step3">
-                <div class="step-header">
-                    <span class="step-number">3</span>
-                    <h2 class="step-title">Result & Controls</h2>
-                </div>
-                <div class="viewport-container">
-                    <div class="viewport">
-                        <canvas id="mainCanvas"></canvas>
-                        <div id="placeholder" class="placeholder-text">Result will appear here</div>
-                    </div>
-
-                    <div class="video-controls" id="videoControls">
-                        <button id="playPauseBtn" class="control-btn" title="Play/Pause">
-                            <span class="play-icon">▶️</span>
-                        </button>
-                        <div class="slider-container">
-                            <input type="range" id="seekSlider" class="seek-slider" value="0" min="0" step="0.001">
-                        </div>
-                        <span id="timeDisplay" class="time-display">00:00 / 00:00</span>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Advanced: Static Photo Swap -->
-            <details class="advanced-settings">
-                <summary>📸 Static Photo Swap (Legacy)</summary>
-                <div class="controls-group">
-                    <div class="input-group">
-                        <label for="targetImageInput" class="file-label">
-                            <span class="icon">🎯</span>
-                            <span class="text">Target Image</span>
-                            <span class="sub-text">Face to replace</span>
-                        </label>
+                    <!-- Legacy: Static Target -->
+                    <details class="legacy-import">
+                        <summary>Static Target Image (Legacy)</summary>
                         <input type="file" id="targetImageInput" accept="image/png, image/jpeg">
-                    </div>
+                        <button id="warpFaceBtn" disabled>Warp Static</button>
+                    </details>
+                </div>
+            </aside>
 
-                    <div class="input-group warp-button">
-                        <button id="warpFaceBtn" class="action-button" disabled>
-                            <span class="icon">🔄</span>
-                            <span class="text">Warp Face</span>
-                        </button>
+            <!-- Center Panel: Viewport -->
+            <main class="panel viewport-panel">
+                <div class="panel-header">
+                    <h2 id="currentVideoName">Viewport - No source</h2>
+                </div>
+                <div class="panel-content viewport-content">
+                    <canvas id="mainCanvas"></canvas>
+                    <div id="placeholder" class="viewport-placeholder">
+                        <span class="p-icon">🎬</span>
+                        <p>Import assets to start editing</p>
                     </div>
                 </div>
-            </details>
-        </main>
+            </main>
 
-        <!-- Hidden video element for decoding -->
-        <video id="sourceVideo" playsinline muted loop style="display: none;"></video>
-        <!-- Temporary storage for face image -->
-        <img id="faceImage" style="display: none;">
+            <!-- Right Panel: Effect Controls -->
+            <aside class="panel controls-panel">
+                <div class="panel-header">
+                    <h2>Effect Controls</h2>
+                </div>
+                <div class="panel-content">
+                    <!-- Face Settings -->
+                    <div class="control-group">
+                        <h3>🤖 Detection & Stability</h3>
+                        <div class="checkbox-group">
+                            <label class="check-item">
+                                <input type="checkbox" id="stableMode" checked>
+                                <span>Stable Landmarks</span>
+                            </label>
+                            <label class="check-item">
+                                <input type="checkbox" id="debugMode">
+                                <span>Debug Mode</span>
+                            </label>
+                            <label class="check-item">
+                                <input type="checkbox" id="showTriangles">
+                                <span>Show Triangles</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Edge Feathering -->
+                    <div class="control-group">
+                        <h3>🪶 Edge Feathering</h3>
+                        <div class="slider-block">
+                            <div class="slider-header">
+                                <label>Edge Blur</label>
+                                <span id="edgeFeatherVal">20px</span>
+                            </div>
+                            <input type="range" id="edgeFeather" min="0" max="50" value="20">
+                        </div>
+                        <div class="slider-block">
+                            <div class="slider-header">
+                                <label>Falloff</label>
+                                <span id="falloffVal">70%</span>
+                            </div>
+                            <input type="range" id="falloffSlider" min="0" max="100" value="70" step="5">
+                        </div>
+                    </div>
+
+                    <!-- Color Correction -->
+                    <div class="control-group">
+                        <h3>🎨 Color Correction</h3>
+                        <label class="check-item match-check">
+                            <input type="checkbox" id="autoMatchColor">
+                            <span>✨ Auto Match Lighting</span>
+                        </label>
+                        <div class="slider-block">
+                            <div class="slider-header">
+                                <label>Brightness</label>
+                                <span id="brightnessVal">0</span>
+                            </div>
+                            <input type="range" id="brightnessSlider" min="-100" max="100" value="0">
+                        </div>
+                        <div class="slider-block">
+                            <div class="slider-header">
+                                <label>Contrast</label>
+                                <span id="contrastVal">0</span>
+                            </div>
+                            <input type="range" id="contrastSlider" min="-100" max="100" value="0">
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- Bottom Panel: Timeline -->
+        <footer class="panel timeline-panel">
+            <div class="timeline-header">
+                <div class="playback-controls">
+                    <button id="playPauseBtn" class="play-btn">
+                        <span class="play-icon">▶️</span>
+                    </button>
+                    <span id="timeDisplay" class="time-readout">0:00 / 0:00</span>
+                </div>
+            </div>
+            <div class="timeline-container">
+                <input type="range" id="seekSlider" class="timeline-slider" min="0" value="0" step="0.01">
+            </div>
+        </footer>
     </div>
 
+    <!-- Hidden Elements -->
+    <video id="sourceVideo" playsinline muted loop style="display: none;"></video>
+    <img id="faceImage" style="display: none;">
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_landmarker@0.10.7"></script>
     <script src="faceLandmarker.js"></script>
-    <script src="photoProcessor.js"></script>
     <script src="faceWarper.js"></script>
+    <script src="photoProcessor.js"></script>
     <script src="faceBlender.js"></script>
     <script src="script.js"></script>
 </body>

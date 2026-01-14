@@ -42,20 +42,52 @@ let targetLandmarks = null;
 let targetCache = null;
 let videoLandmarkCache = new Map(); // Cache for video landmarks per timestamp
 
-// Helper to update label text
-function updateLabel(inputId, filename) {
-    const label = document.querySelector(`label[for="${inputId}"]`);
-    const textSpan = label.querySelector('.text');
-    const subTextSpan = label.querySelector('.sub-text');
+// Helper to update asset list & viewport name
+function registerAsset(inputId, filename) {
+    const isVideo = inputId === 'videoInput';
+    const listId = isVideo ? 'videoList' : 'photoList';
+    const list = document.getElementById(listId);
 
-    label.classList.add('active');
-    textSpan.textContent = "Selected";
-    subTextSpan.textContent = filename;
+    // Clear the "empty" hint if present
+    const emptyHint = list.querySelector('.empty-hint');
+    if (emptyHint) emptyHint.remove();
+
+    // Add asset entry
+    const entry = document.createElement('div');
+    entry.className = 'asset-item active';
+    entry.innerHTML = `
+        <span class="asset-icon">${isVideo ? '🎥' : '👤'}</span>
+        <span class="asset-name">${filename}</span>
+    `;
+
+    // Deactivate others
+    list.querySelectorAll('.asset-item').forEach(item => item.classList.remove('active'));
+    list.appendChild(entry);
+
+    if (isVideo) {
+        document.getElementById('currentVideoName').textContent = `Viewport - ${filename}`;
+    }
 }
 
-// Initialize Face Landmarker on page load
+// Initialize Face Landmarker and Tab logic
 async function initApp() {
     console.log("Initializing application...");
+
+    // Tab switching logic
+    const tabs = document.querySelectorAll('.tab-btn');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+
+            const target = tab.dataset.tab;
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(`${target}-tab`).classList.add('active');
+        });
+    });
+
     if (window.FaceLandmarkerModule) {
         const success = await window.FaceLandmarkerModule.init();
         if (success) {
@@ -74,7 +106,7 @@ videoInput.addEventListener('change', (e) => {
     if (file) {
         const url = URL.createObjectURL(file);
         sourceVideo.src = url;
-        updateLabel('videoInput', file.name);
+        registerAsset('videoInput', file.name);
 
         // When video metadata is loaded, resize canvas and start playback
         sourceVideo.onloadedmetadata = () => {
@@ -157,7 +189,7 @@ imageInput.addEventListener('change', async (e) => {
         const url = URL.createObjectURL(file);
         faceImage.src = url;
         faceImage.onload = async () => {
-            updateLabel('imageInput', file.name);
+            registerAsset('imageInput', file.name);
 
             // Clear previous cache
             if (window.PhotoProcessor) {
