@@ -99,6 +99,31 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Color Correction Controls -->
+                <div class="color-controls">
+                    <h3 class="controls-subtitle">🎨 Color Correction</h3>
+
+                    <div class="input-group auto-match-group">
+                        <label for="autoMatchColor" class="checkbox-label match-label">
+                            <input type="checkbox" id="autoMatchColor">
+                            <span class="checkbox-text">✨ Auto Match Lighting</span>
+                        </label>
+                    </div>
+
+                    <div class="sliders-row">
+                        <div class="slider-item">
+                            <label for="brightnessSlider">Brightness</label>
+                            <input type="range" id="brightnessSlider" min="-100" max="100" value="0" step="1">
+                            <span id="brightnessVal" class="slider-val">0</span>
+                        </div>
+                        <div class="slider-item">
+                            <label for="contrastSlider">Contrast</label>
+                            <input type="range" id="contrastSlider" min="-100" max="100" value="0" step="1">
+                            <span id="contrastVal" class="slider-val">0</span>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- Step 3: Result & Controls -->
