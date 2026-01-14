@@ -653,3 +653,11 @@ body {
     color: var(--accent-color);
     border-left: 2px solid var(--accent-color);
 }
+
+.control-hint {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 0.5rem;
+    line-height: 1.4;
+    font-style: italic;
+}

@@ -19,10 +19,6 @@ const edgeFeatherSlider = document.getElementById('edgeFeather');
 const edgeFeatherVal = document.getElementById('edgeFeatherVal');
 const falloffSlider = document.getElementById('falloffSlider');
 const falloffVal = document.getElementById('falloffVal');
-const brightnessSlider = document.getElementById('brightnessSlider');
-const contrastSlider = document.getElementById('contrastSlider');
-const brightnessVal = document.getElementById('brightnessVal');
-const contrastVal = document.getElementById('contrastVal');
 const autoMatchCheckbox = document.getElementById('autoMatchColor');
 const exportBtn = document.getElementById('exportBtn');
 const exportModal = document.getElementById('exportModal');
@@ -270,14 +266,6 @@ edgeFeatherSlider.addEventListener('input', () => {
 // Falloff slider listener
 falloffSlider.addEventListener('input', () => {
     falloffVal.textContent = `${falloffSlider.value}%`;
-});
-
-// Color correction listeners
-brightnessSlider.addEventListener('input', () => {
-    brightnessVal.textContent = brightnessSlider.value;
-});
-contrastSlider.addEventListener('input', () => {
-    contrastVal.textContent = contrastSlider.value;
 });
 
 // Helper: Wait for valid video data
@@ -936,7 +924,7 @@ function drawFrame() {
                             srcCache.triangles
                         );
 
-                        // Auto-match lighting
+                        // Auto-match lighting (LAB color matching)
                         if (autoMatchCheckbox.checked) {
                             // Get stats from source (warp canvas) and target (video on main canvas)
                             const sourceStats = window.FaceBlender.getColorStats(warpCtx, videoPixelLandmarks, warpCanvas.width, warpCanvas.height);
@@ -947,15 +935,6 @@ function drawFrame() {
                                 window.FaceBlender.matchColorStats(warpCtx, warpCanvas.width, warpCanvas.height, sourceStats, targetStats);
                             }
                         }
-
-                        // Apply manual brightness/contrast
-                        const brightness = parseInt(brightnessSlider.value) || 0;
-                        const contrast = parseInt(contrastSlider.value) || 0;
-                        if (brightness !== 0 || contrast !== 0) {
-                            window.FaceBlender.adjustColor(warpCtx, warpCanvas.width, warpCanvas.height, brightness, contrast);
-                        }
-
-                        // Apply edge-feathered blending with falloff
 
                         // Apply edge-feathered blending with falloff
                         const falloff = parseInt(falloffSlider.value) || 70;

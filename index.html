@@ -193,27 +193,15 @@
                         </div>
                     </div>
 
-                    <!-- Color Correction -->
+                    <!-- Color Matching -->
                     <div class="control-group">
-                        <h3>🎨 Color Correction</h3>
+                        <h3>🎨 Color Matching</h3>
                         <label class="check-item match-check">
-                            <input type="checkbox" id="autoMatchColor">
-                            <span>✨ Auto Match Lighting</span>
+                            <input type="checkbox" id="autoMatchColor" checked>
+                            <span>✨ LAB Color Matching</span>
                         </label>
-                        <div class="slider-block">
-                            <div class="slider-header">
-                                <label>Brightness</label>
-                                <span id="brightnessVal">0</span>
-                            </div>
-                            <input type="range" id="brightnessSlider" min="-100" max="100" value="0">
-                        </div>
-                        <div class="slider-block">
-                            <div class="slider-header">
-                                <label>Contrast</label>
-                                <span id="contrastVal">0</span>
-                            </div>
-                            <input type="range" id="contrastSlider" min="-100" max="100" value="0">
-                        </div>
+                        <p class="control-hint">Automatically matches source skin tones to target using perceptually
+                            accurate LAB color space transfer.</p>
                     </div>
                 </div>
             </aside>

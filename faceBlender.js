@@ -180,7 +180,100 @@
     }
 
     /**
-     * Get color statistics (mean and std dev) for face region
+     * Convert RGB to LAB color space
+     * LAB separates luminance (L) from chrominance (a,b) for better color matching
+     */
+    function rgbToLab(r, g, b) {
+        // First convert RGB to XYZ
+        let rNorm = r / 255;
+        let gNorm = g / 255;
+        let bNorm = b / 255;
+
+        // Apply gamma correction
+        rNorm = rNorm > 0.04045 ? Math.pow((rNorm + 0.055) / 1.055, 2.4) : rNorm / 12.92;
+        gNorm = gNorm > 0.04045 ? Math.pow((gNorm + 0.055) / 1.055, 2.4) : gNorm / 12.92;
+        bNorm = bNorm > 0.04045 ? Math.pow((bNorm + 0.055) / 1.055, 2.4) : bNorm / 12.92;
+
+        rNorm *= 100;
+        gNorm *= 100;
+        bNorm *= 100;
+
+        // Convert to XYZ using sRGB matrix
+        const x = rNorm * 0.4124564 + gNorm * 0.3575761 + bNorm * 0.1804375;
+        const y = rNorm * 0.2126729 + gNorm * 0.7151522 + bNorm * 0.0721750;
+        const z = rNorm * 0.0193339 + gNorm * 0.1191920 + bNorm * 0.9503041;
+
+        // Convert XYZ to LAB (D65 illuminant)
+        const xRef = 95.047;
+        const yRef = 100.000;
+        const zRef = 108.883;
+
+        let xNorm = x / xRef;
+        let yNorm = y / yRef;
+        let zNorm = z / zRef;
+
+        const epsilon = 0.008856;
+        const kappa = 903.3;
+
+        xNorm = xNorm > epsilon ? Math.pow(xNorm, 1 / 3) : (kappa * xNorm + 16) / 116;
+        yNorm = yNorm > epsilon ? Math.pow(yNorm, 1 / 3) : (kappa * yNorm + 16) / 116;
+        zNorm = zNorm > epsilon ? Math.pow(zNorm, 1 / 3) : (kappa * zNorm + 16) / 116;
+
+        const L = 116 * yNorm - 16;
+        const a = 500 * (xNorm - yNorm);
+        const bVal = 200 * (yNorm - zNorm);
+
+        return { L, a, b: bVal };
+    }
+
+    /**
+     * Convert LAB to RGB color space
+     */
+    function labToRgb(L, a, bVal) {
+        // Convert LAB to XYZ
+        const yNorm = (L + 16) / 116;
+        const xNorm = a / 500 + yNorm;
+        const zNorm = yNorm - bVal / 200;
+
+        const epsilon = 0.008856;
+        const kappa = 903.3;
+
+        const xRef = 95.047;
+        const yRef = 100.000;
+        const zRef = 108.883;
+
+        const x3 = Math.pow(xNorm, 3);
+        const y3 = Math.pow(yNorm, 3);
+        const z3 = Math.pow(zNorm, 3);
+
+        const x = xRef * (x3 > epsilon ? x3 : (116 * xNorm - 16) / kappa);
+        const y = yRef * (y3 > epsilon ? y3 : (116 * yNorm - 16) / kappa);
+        const z = zRef * (z3 > epsilon ? z3 : (116 * zNorm - 16) / kappa);
+
+        // Convert XYZ to RGB
+        let r = x * 3.2404542 + y * -1.5371385 + z * -0.4985314;
+        let g = x * -0.9692660 + y * 1.8760108 + z * 0.0415560;
+        let b = x * 0.0556434 + y * -0.2040259 + z * 1.0572252;
+
+        r /= 100;
+        g /= 100;
+        b /= 100;
+
+        // Apply inverse gamma correction
+        r = r > 0.0031308 ? 1.055 * Math.pow(r, 1 / 2.4) - 0.055 : 12.92 * r;
+        g = g > 0.0031308 ? 1.055 * Math.pow(g, 1 / 2.4) - 0.055 : 12.92 * g;
+        b = b > 0.0031308 ? 1.055 * Math.pow(b, 1 / 2.4) - 0.055 : 12.92 * b;
+
+        return {
+            r: Math.max(0, Math.min(255, Math.round(r * 255))),
+            g: Math.max(0, Math.min(255, Math.round(g * 255))),
+            b: Math.max(0, Math.min(255, Math.round(b * 255)))
+        };
+    }
+
+    /**
+     * Get color statistics in LAB color space for face region
+     * LAB provides better perceptual uniformity for color matching
      */
     function getColorStats(ctx, landmarks, width, height) {
         const imageData = ctx.getImageData(0, 0, width, height);
@@ -206,24 +299,23 @@
 
         const maskData = maskCtx.getImageData(0, 0, width, height).data;
 
-        let rSum = 0, gSum = 0, bSum = 0;
-        let rSqSum = 0, gSqSum = 0, bSqSum = 0;
+        // Collect LAB values
+        let lSum = 0, aSum = 0, bSum = 0;
+        let lSqSum = 0, aSqSum = 0, bSqSum = 0;
         let count = 0;
 
         for (let i = 0; i < data.length; i += 4) {
-            // Check if pixel is inside face mask (alpha > 128)
+            // Check if pixel is inside face mask
             if (maskData[i + 3] > 128) {
-                const r = data[i];
-                const g = data[i + 1];
-                const b = data[i + 2];
+                const lab = rgbToLab(data[i], data[i + 1], data[i + 2]);
 
-                rSum += r;
-                gSum += g;
-                bSum += b;
+                lSum += lab.L;
+                aSum += lab.a;
+                bSum += lab.b;
 
-                rSqSum += r * r;
-                gSqSum += g * g;
-                bSqSum += b * b;
+                lSqSum += lab.L * lab.L;
+                aSqSum += lab.a * lab.a;
+                bSqSum += lab.b * lab.b;
 
                 count++;
             }
@@ -231,19 +323,20 @@
 
         if (count === 0) return null;
 
-        const meanR = rSum / count;
-        const meanG = gSum / count;
+        const meanL = lSum / count;
+        const meanA = aSum / count;
         const meanB = bSum / count;
 
-        const stdR = Math.sqrt(rSqSum / count - meanR * meanR);
-        const stdG = Math.sqrt(gSqSum / count - meanG * meanG);
-        const stdB = Math.sqrt(bSqSum / count - meanB * meanB);
+        const stdL = Math.sqrt(Math.max(0, lSqSum / count - meanL * meanL));
+        const stdA = Math.sqrt(Math.max(0, aSqSum / count - meanA * meanA));
+        const stdB = Math.sqrt(Math.max(0, bSqSum / count - meanB * meanB));
 
-        return { meanR, meanG, meanB, stdR, stdG, stdB };
+        return { meanL, meanA, meanB, stdL, stdA, stdB };
     }
 
     /**
-     * Match color statistics of source to target (Reinhard Color Transfer)
+     * Match color statistics of source to target using LAB color space (Reinhard Color Transfer)
+     * LAB-based matching provides superior results for skin tone matching
      */
     function matchColorStats(sourceCtx, width, height, sourceStats, targetStats) {
         if (!sourceStats || !targetStats) return;
@@ -254,10 +347,21 @@
         for (let i = 0; i < data.length; i += 4) {
             // Only process non-transparent pixels
             if (data[i + 3] > 0) {
-                // Apply color transfer: result = (pixel - sourceMean) * (targetStd / sourceStd) + targetMean
-                data[i] = Math.max(0, Math.min(255, (data[i] - sourceStats.meanR) * (targetStats.stdR / (sourceStats.stdR || 1)) + targetStats.meanR));
-                data[i + 1] = Math.max(0, Math.min(255, (data[i + 1] - sourceStats.meanG) * (targetStats.stdG / (sourceStats.stdG || 1)) + targetStats.meanG));
-                data[i + 2] = Math.max(0, Math.min(255, (data[i + 2] - sourceStats.meanB) * (targetStats.stdB / (sourceStats.stdB || 1)) + targetStats.meanB));
+                // Convert to LAB
+                const lab = rgbToLab(data[i], data[i + 1], data[i + 2]);
+
+                // Apply Reinhard transfer in LAB space:
+                // result = (pixel - sourceMean) * (targetStd / sourceStd) + targetMean
+                const newL = (lab.L - sourceStats.meanL) * (targetStats.stdL / (sourceStats.stdL || 1)) + targetStats.meanL;
+                const newA = (lab.a - sourceStats.meanA) * (targetStats.stdA / (sourceStats.stdA || 1)) + targetStats.meanA;
+                const newB = (lab.b - sourceStats.meanB) * (targetStats.stdB / (sourceStats.stdB || 1)) + targetStats.meanB;
+
+                // Convert back to RGB
+                const rgb = labToRgb(newL, newA, newB);
+
+                data[i] = rgb.r;
+                data[i + 1] = rgb.g;
+                data[i + 2] = rgb.b;
             }
         }
 
