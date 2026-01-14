@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,6 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
 </head>
+
 <body>
     <div class="app-container">
         <header>
@@ -35,6 +37,13 @@
                     </label>
                     <input type="file" id="imageInput" accept="image/png, image/jpeg">
                 </div>
+
+                <div class="input-group debug-toggle">
+                    <label for="debugMode" class="checkbox-label">
+                        <input type="checkbox" id="debugMode">
+                        <span class="checkbox-text">🔍 Debug Mode</span>
+                    </label>
+                </div>
             </div>
 
             <div class="viewport">
@@ -49,6 +58,8 @@
         <img id="faceImage" style="display: none;">
     </div>
 
+    <script src="faceLandmarker.js"></script>
     <script src="script.js"></script>
 </body>
+
 </html>

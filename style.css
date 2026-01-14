@@ -104,7 +104,7 @@ header p {
     color: var(--text-secondary);
 }
 
-/* Active state for inputs (can be toggled by JS later) */
+/* Active state for inputs */
 .file-label.active {
     border-style: solid;
     border-color: var(--accent-color);
@@ -129,7 +129,7 @@ canvas {
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
-    display: block; /* Removes bottom spacing */
+    display: block;
 }
 
 .placeholder-text {
@@ -138,10 +138,193 @@ canvas {
     pointer-events: none;
 }
 
+/* Debug Toggle Styling */
+.debug-toggle {
+    display: flex;
+    align-items: center;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    padding: 0.75rem 1.25rem;
+    background-color: var(--bg-secondary);
+    border: 2px solid var(--bg-tertiary);
+    border-radius: var(--border-radius);
+    transition: var(--transition);
+}
+
+.checkbox-label:hover {
+    border-color: var(--accent-color);
+    background-color: rgba(56, 189, 248, 0.05);
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent-color);
+    cursor: pointer;
+}
+
+.checkbox-label .checkbox-text {
+    font-weight: 500;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+}
+
+.checkbox-label:has(input:checked) {
+    border-color: var(--accent-color);
+    background-color: rgba(56, 189, 248, 0.1);
+}
+
+/* Tablet and below */
+@media (max-width: 768px) {
+    body {
+        padding: 1rem;
+    }
+
+    header h1 {
+        font-size: 2rem;
+    }
+
+    header p {
+        font-size: 1rem;
+    }
+
+    .controls {
+        gap: 1.5rem;
+    }
+
+    .file-label {
+        width: 180px;
+        height: 120px;
+    }
+
+    .viewport {
+        max-height: 60vh;
+    }
+}
+
+/* Mobile devices */
 @media (max-width: 600px) {
+    body {
+        padding: 0.5rem;
+    }
+
+    .app-container {
+        gap: 1.5rem;
+    }
+
+    header {
+        margin-bottom: 0.5rem;
+    }
+
+    header h1 {
+        font-size: 1.75rem;
+    }
+
+    header p {
+        font-size: 0.9rem;
+    }
+
     .controls {
         flex-direction: column;
-        align-items: center;
+        align-items: stretch;
         gap: 1rem;
+        width: 100%;
+    }
+
+    .input-group {
+        width: 100%;
+    }
+
+    .file-label {
+        width: 100%;
+        height: 100px;
+        padding: 0.75rem;
+    }
+
+    .file-label .icon {
+        font-size: 1.5rem;
+    }
+
+    .file-label .text {
+        font-size: 0.95rem;
+    }
+
+    .file-label .sub-text {
+        font-size: 0.75rem;
+    }
+
+    .debug-toggle {
+        width: 100%;
+    }
+
+    .checkbox-label {
+        width: 100%;
+        justify-content: center;
+        padding: 1rem;
+        /* Larger touch target for mobile */
+        min-height: 48px;
+    }
+
+    .checkbox-label input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+    }
+
+    .checkbox-label .checkbox-text {
+        font-size: 1rem;
+    }
+
+    .viewport {
+        max-height: 50vh;
+        aspect-ratio: auto;
+        min-height: 300px;
+    }
+
+    canvas {
+        width: 100%;
+        height: auto;
+    }
+}
+
+/* Very small mobile devices */
+@media (max-width: 400px) {
+    header h1 {
+        font-size: 1.5rem;
+    }
+
+    .file-label {
+        height: 90px;
+    }
+
+    .viewport {
+        min-height: 250px;
+    }
+}
+
+/* Landscape orientation on mobile */
+@media (max-width: 900px) and (orientation: landscape) {
+    .viewport {
+        max-height: 70vh;
+    }
+
+    .controls {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .input-group {
+        flex: 0 0 calc(50% - 0.5rem);
+        max-width: 200px;
+    }
+
+    .debug-toggle {
+        flex: 1 0 100%;
+        max-width: 100%;
     }
 }
