@@ -23,6 +23,11 @@ const contrastSlider = document.getElementById('contrastSlider');
 const brightnessVal = document.getElementById('brightnessVal');
 const contrastVal = document.getElementById('contrastVal');
 const autoMatchCheckbox = document.getElementById('autoMatchColor');
+const exportBtn = document.getElementById('exportBtn');
+const exportModal = document.getElementById('exportModal');
+const exportProgress = document.getElementById('exportProgress');
+const exportStatus = document.getElementById('exportStatus');
+const cancelExportBtn = document.getElementById('cancelExportBtn');
 
 // Offscreen canvas for warping before blending
 let warpCanvas = null;
@@ -41,6 +46,8 @@ let imageLandmarks = null;
 let targetLandmarks = null;
 let targetCache = null;
 let videoLandmarkCache = new Map(); // Cache for video landmarks per timestamp
+let isExporting = false;
+let exportCancelled = false;
 
 // Helper to update asset list & viewport name
 function registerAsset(inputId, filename) {
@@ -182,7 +189,227 @@ contrastSlider.addEventListener('input', () => {
     contrastVal.textContent = contrastSlider.value;
 });
 
-// Handle Image Upload (Source Face)
+// Video Export Logic
+async function exportVideo() {
+    if (isExporting || !sourceVideo.src || sourceVideo.duration === 0) return;
+
+    isExporting = true;
+    exportCancelled = false;
+
+    // UI Feedback
+    exportModal.classList.add('active');
+    exportProgress.style.width = '0%';
+    exportStatus.textContent = 'Preparing render...';
+
+    // Pause normal playback
+    sourceVideo.pause();
+    if (renderLoopId) cancelAnimationFrame(renderLoopId);
+
+    try {
+        // Detect if manual frame request is supported (Firefox lacks this)
+        const testStream = mainCanvas.captureStream(0);
+        const manualFrameSupported = typeof testStream.getVideoTracks()[0].requestFrame === 'function';
+
+        let stream;
+        if (manualFrameSupported) {
+            stream = mainCanvas.captureStream(0); // Manual capture
+        } else {
+            stream = mainCanvas.captureStream(30); // Auto capture (Real-time fallback)
+            console.warn("Manual frame capture not supported. Falling back to real-time recording.");
+        }
+
+        // Find best supported MIME type
+        const types = [
+            'video/webm;codecs=vp9,opus',
+            'video/webm;codecs=vp9',
+            'video/webm;codecs=vp8',
+            'video/webm',
+            'video/mp4'
+        ];
+
+        let supportedType = '';
+        for (const type of types) {
+            if (MediaRecorder.isTypeSupported(type)) {
+                supportedType = type;
+                break;
+            }
+        }
+
+        console.log("Using supported export format:", supportedType || "Default");
+
+        const recorder = new MediaRecorder(stream, supportedType ? {
+            mimeType: supportedType,
+            bitsPerSecond: 10000000 // 10Mbps
+        } : {});
+
+        const chunks = [];
+        recorder.ondataavailable = e => chunks.push(e.data);
+
+        const fps = 30; // Standardize export FPS
+        const totalDuration = sourceVideo.duration;
+        const totalFrames = Math.floor(totalDuration * fps);
+        const frameTime = 1 / fps;
+
+        recorder.onstop = () => {
+            if (exportCancelled) return;
+
+            const mimeType = recorder.mimeType || 'video/webm';
+            const extension = mimeType.includes('mp4') ? 'mp4' : 'webm';
+
+            const blob = new Blob(chunks, { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `FaceSwap_Export_${Date.now()}.${extension}`;
+            a.click();
+
+            exportModal.classList.remove('active');
+            isExporting = false;
+            startRenderingLoop(); // Resume preview
+        };
+
+        recorder.start();
+
+        if (manualFrameSupported) {
+            // High-quality Offline Rendering (Chrome/Edge)
+            for (let i = 0; i <= totalFrames; i++) {
+                if (exportCancelled) break;
+
+                const currentTime = i * frameTime;
+                sourceVideo.currentTime = Math.min(currentTime, totalDuration);
+
+                // Wait for seek
+                await new Promise(resolve => {
+                    const onSeeked = () => {
+                        sourceVideo.removeEventListener('seeked', onSeeked);
+                        resolve();
+                    };
+                    sourceVideo.addEventListener('seeked', onSeeked);
+                });
+
+                // Process frame
+                await processExportFrame();
+
+                // Capture
+                stream.getVideoTracks()[0].requestFrame();
+
+                // Update UI
+                const percent = (i / totalFrames) * 100;
+                exportProgress.style.width = `${percent}%`;
+                exportStatus.textContent = `Rendering frame ${i} / ${totalFrames}...`;
+            }
+            recorder.stop();
+        } else {
+            // Real-time Recording Fallback (Firefox)
+            sourceVideo.currentTime = 0;
+            // Use the main loop for rendering
+            startRenderingLoop();
+            sourceVideo.play();
+
+            const checkEnd = setInterval(() => {
+                const percent = (sourceVideo.currentTime / totalDuration) * 100;
+                exportProgress.style.width = `${percent}%`;
+                exportStatus.textContent = `Recording... ${Math.round(percent)}%`;
+
+                if (sourceVideo.ended || sourceVideo.currentTime >= totalDuration || exportCancelled) {
+                    clearInterval(checkEnd);
+                    recorder.stop();
+                    sourceVideo.pause();
+                    cancelAnimationFrame(renderLoopId); // Stop loop
+                }
+            }, 100);
+        }
+
+    } catch (err) {
+        console.error("Export failed:", err);
+        alert("Export failed: " + err.message);
+        exportModal.classList.remove('active');
+        isExporting = false;
+        startRenderingLoop();
+    }
+}
+
+async function processExportFrame() {
+    return new Promise(resolve => {
+        // Draw the current video frame to the canvas
+        ctx.drawImage(sourceVideo, 0, 0, mainCanvas.width, mainCanvas.height);
+
+        // Use a timestamp based on video time
+        const timestamp = sourceVideo.currentTime * 1000;
+
+        // Check cache or detect
+        let currentLandmarks = null;
+        const timeKey = Math.floor(sourceVideo.currentTime * 1000);
+
+        if (videoLandmarkCache.has(timeKey)) {
+            currentLandmarks = videoLandmarkCache.get(timeKey);
+        } else if (window.FaceLandmarkerModule && window.FaceLandmarkerModule.isReady()) {
+            currentLandmarks = window.FaceLandmarkerModule.detectVideo(sourceVideo, timestamp);
+            if (currentLandmarks && currentLandmarks.length > 0) {
+                videoLandmarkCache.set(timeKey, currentLandmarks);
+            }
+        }
+
+        // Apply swap if possible
+        if (enableSwapCheckbox.checked && currentLandmarks && currentLandmarks.length > 0) {
+            const srcCache = window.PhotoProcessor.getCache();
+            if (srcCache) {
+                for (const faceLandmarks of currentLandmarks) {
+                    const stableVideoLandmarks = window.FaceLandmarkerModule.getStableLandmarks(faceLandmarks);
+                    if (stableVideoLandmarks.length === srcCache.pixelLandmarks.length) {
+                        const videoPixelLandmarks = stableVideoLandmarks.map(lm => ({
+                            x: lm.x * mainCanvas.width,
+                            y: lm.y * mainCanvas.height
+                        }));
+
+                        // Prepare warp canvas
+                        if (!warpCanvas || warpCanvas.width !== mainCanvas.width || warpCanvas.height !== mainCanvas.height) {
+                            warpCanvas = document.createElement('canvas');
+                            warpCanvas.width = mainCanvas.width;
+                            warpCanvas.height = mainCanvas.height;
+                            warpCtx = warpCanvas.getContext('2d');
+                        }
+                        warpCtx.clearRect(0, 0, warpCanvas.width, warpCanvas.height);
+
+                        // Warp
+                        window.FaceWarper.warpFace(warpCtx, faceImage, srcCache.pixelLandmarks, videoPixelLandmarks, srcCache.triangles);
+
+                        // Color Match
+                        if (autoMatchCheckbox.checked) {
+                            const sourceStats = window.FaceBlender.getColorStats(warpCtx, videoPixelLandmarks, warpCanvas.width, warpCanvas.height);
+                            const targetStats = window.FaceBlender.getColorStats(ctx, videoPixelLandmarks, mainCanvas.width, mainCanvas.height);
+                            if (sourceStats && targetStats) {
+                                window.FaceBlender.matchColorStats(warpCtx, warpCanvas.width, warpCanvas.height, sourceStats, targetStats);
+                            }
+                        }
+
+                        // Manual Adjust
+                        const b = parseInt(brightnessSlider.value) || 0;
+                        const c = parseInt(contrastSlider.value) || 0;
+                        if (b !== 0 || c !== 0) window.FaceBlender.adjustColor(warpCtx, warpCanvas.width, warpCanvas.height, b, c);
+
+                        // Blend
+                        const edgeBlur = parseInt(edgeFeatherSlider.value) || 20;
+                        const falloff = parseInt(falloffSlider.value) || 70;
+                        window.FaceBlender.applyFeatheredBlend(ctx, warpCanvas, videoPixelLandmarks, edgeBlur, falloff);
+                    }
+                }
+            }
+        }
+
+        // Give the browser a moment to finalize the draw
+        requestAnimationFrame(() => resolve());
+    });
+}
+
+exportBtn.addEventListener('click', exportVideo);
+
+cancelExportBtn.addEventListener('click', () => {
+    exportCancelled = true;
+    exportModal.classList.remove('active');
+    isExporting = false;
+    startRenderingLoop();
+});
 imageInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
