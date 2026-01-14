@@ -7,6 +7,7 @@ const faceImage = document.getElementById('faceImage');
 const placeholder = document.getElementById('placeholder');
 const debugModeCheckbox = document.getElementById('debugMode');
 const stableModeCheckbox = document.getElementById('stableMode');
+const showTrianglesCheckbox = document.getElementById('showTriangles');
 
 // State
 let renderLoopId;
@@ -75,11 +76,28 @@ imageInput.addEventListener('change', async (e) => {
         faceImage.onload = async () => {
             updateLabel('imageInput', file.name);
 
+            // Clear previous cache
+            if (window.PhotoProcessor) {
+                window.PhotoProcessor.clearCache();
+            }
+
             // Detect landmarks on the face image
             if (window.FaceLandmarkerModule && window.FaceLandmarkerModule.isReady()) {
                 imageLandmarks = await window.FaceLandmarkerModule.detectImage(faceImage);
                 if (imageLandmarks && imageLandmarks.length > 0) {
                     console.log(`Detected ${imageLandmarks[0].length} landmarks on face image`);
+
+                    // Preprocess the photo: extract stable landmarks, compute bounding box, triangulate
+                    if (window.PhotoProcessor) {
+                        const cache = window.PhotoProcessor.preprocess(
+                            imageLandmarks[0],
+                            faceImage.naturalWidth,
+                            faceImage.naturalHeight
+                        );
+                        if (cache) {
+                            console.log("Photo preprocessed and cached successfully");
+                        }
+                    }
                 } else {
                     console.log("No face detected in image");
                     imageLandmarks = null;
@@ -106,6 +124,15 @@ debugModeCheckbox.addEventListener('change', () => {
 // Handle stable mode toggle - redraw canvas to show filtered landmarks
 stableModeCheckbox.addEventListener('change', () => {
     console.log('Stable mode:', stableModeCheckbox.checked ? 'enabled' : 'disabled');
+    // If video isn't playing, manually redraw the canvas
+    if (!sourceVideo.src || sourceVideo.paused) {
+        redrawCanvas();
+    }
+});
+
+// Handle show triangles toggle - redraw canvas to show/hide triangle mesh
+showTrianglesCheckbox.addEventListener('change', () => {
+    console.log('Show triangles:', showTrianglesCheckbox.checked ? 'enabled' : 'disabled');
     // If video isn't playing, manually redraw the canvas
     if (!sourceVideo.src || sourceVideo.paused) {
         redrawCanvas();
@@ -169,6 +196,18 @@ function redrawCanvas() {
             } else {
                 window.FaceLandmarkerModule.drawLandmarks(ctx, landmarksToDraw, mainCanvas.width, mainCanvas.height, "#00FF00");
                 window.FaceLandmarkerModule.drawFaceMesh(ctx, landmarksToDraw, mainCanvas.width, mainCanvas.height, "rgba(0, 255, 0, 0.5)");
+            }
+        }
+
+        // Draw triangle mesh if show triangles is enabled
+        if (showTrianglesCheckbox.checked && window.PhotoProcessor && window.PhotoProcessor.isProcessed()) {
+            const cache = window.PhotoProcessor.getCache();
+            if (cache) {
+                // Scale from original image size to canvas size
+                const scaleX = mainCanvas.width / cache.imageWidth;
+                const scaleY = mainCanvas.height / cache.imageHeight;
+                window.PhotoProcessor.drawTriangleMesh(ctx, cache.pixelLandmarks, cache.triangles, scaleX, scaleY, "#FFFF00");
+                window.PhotoProcessor.drawBoundingBox(ctx, cache.boundingBox, scaleX, scaleY, "#00FFFF");
             }
         }
     }
