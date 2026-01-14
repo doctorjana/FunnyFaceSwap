@@ -32,10 +32,26 @@
                 <div class="input-group">
                     <label for="imageInput" class="file-label">
                         <span class="icon">👤</span>
-                        <span class="text">Select Face</span>
-                        <span class="sub-text">PNG or JPG</span>
+                        <span class="text">Source Face</span>
+                        <span class="sub-text">Face to swap in</span>
                     </label>
                     <input type="file" id="imageInput" accept="image/png, image/jpeg">
+                </div>
+
+                <div class="input-group">
+                    <label for="targetImageInput" class="file-label">
+                        <span class="icon">🎯</span>
+                        <span class="text">Target Image</span>
+                        <span class="sub-text">Face to replace</span>
+                    </label>
+                    <input type="file" id="targetImageInput" accept="image/png, image/jpeg">
+                </div>
+
+                <div class="input-group warp-button">
+                    <button id="warpFaceBtn" class="action-button" disabled>
+                        <span class="icon">🔄</span>
+                        <span class="text">Warp Face</span>
+                    </button>
                 </div>
 
                 <div class="input-group debug-toggle">
@@ -74,6 +90,7 @@
 
     <script src="faceLandmarker.js"></script>
     <script src="photoProcessor.js"></script>
+    <script src="faceWarper.js"></script>
     <script src="script.js"></script>
 </body>
 

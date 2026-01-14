@@ -1,5 +1,6 @@
 const videoInput = document.getElementById('videoInput');
 const imageInput = document.getElementById('imageInput');
+const targetImageInput = document.getElementById('targetImageInput');
 const mainCanvas = document.getElementById('mainCanvas');
 const ctx = mainCanvas.getContext('2d');
 const sourceVideo = document.getElementById('sourceVideo');
@@ -8,12 +9,20 @@ const placeholder = document.getElementById('placeholder');
 const debugModeCheckbox = document.getElementById('debugMode');
 const stableModeCheckbox = document.getElementById('stableMode');
 const showTrianglesCheckbox = document.getElementById('showTriangles');
+const warpFaceBtn = document.getElementById('warpFaceBtn');
+
+// Hidden target image element
+const targetImage = document.createElement('img');
+targetImage.style.display = 'none';
+document.body.appendChild(targetImage);
 
 // State
 let renderLoopId;
 let lastVideoTime = -1;
 let videoLandmarks = null;
 let imageLandmarks = null;
+let targetLandmarks = null;
+let targetCache = null;
 
 // Helper to update label text
 function updateLabel(inputId, filename) {
@@ -67,7 +76,7 @@ videoInput.addEventListener('change', (e) => {
     }
 });
 
-// Handle Image Upload
+// Handle Image Upload (Source Face)
 imageInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -85,7 +94,7 @@ imageInput.addEventListener('change', async (e) => {
             if (window.FaceLandmarkerModule && window.FaceLandmarkerModule.isReady()) {
                 imageLandmarks = await window.FaceLandmarkerModule.detectImage(faceImage);
                 if (imageLandmarks && imageLandmarks.length > 0) {
-                    console.log(`Detected ${imageLandmarks[0].length} landmarks on face image`);
+                    console.log(`Detected ${imageLandmarks[0].length} landmarks on source face`);
 
                     // Preprocess the photo: extract stable landmarks, compute bounding box, triangulate
                     if (window.PhotoProcessor) {
@@ -95,13 +104,15 @@ imageInput.addEventListener('change', async (e) => {
                             faceImage.naturalHeight
                         );
                         if (cache) {
-                            console.log("Photo preprocessed and cached successfully");
+                            console.log("Source photo preprocessed and cached successfully");
                         }
                     }
                 } else {
-                    console.log("No face detected in image");
+                    console.log("No face detected in source image");
                     imageLandmarks = null;
                 }
+
+                updateWarpButtonState();
 
                 // Trigger a canvas redraw if video is not playing
                 if (!sourceVideo.src || sourceVideo.paused) {
@@ -111,6 +122,113 @@ imageInput.addEventListener('change', async (e) => {
         };
     }
 });
+
+// Handle Target Image Upload
+targetImageInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        const url = URL.createObjectURL(file);
+        targetImage.src = url;
+        targetImage.onload = async () => {
+            updateLabel('targetImageInput', file.name);
+
+            // Detect landmarks on the target image
+            if (window.FaceLandmarkerModule && window.FaceLandmarkerModule.isReady()) {
+                targetLandmarks = await window.FaceLandmarkerModule.detectImage(targetImage);
+                if (targetLandmarks && targetLandmarks.length > 0) {
+                    console.log(`Detected ${targetLandmarks[0].length} landmarks on target face`);
+
+                    // Get stable landmarks for target
+                    const stableTargetLandmarks = window.FaceLandmarkerModule.getStableLandmarks(targetLandmarks[0]);
+
+                    // Convert to pixel coordinates
+                    targetCache = {
+                        landmarks: stableTargetLandmarks,
+                        pixelLandmarks: stableTargetLandmarks.map(lm => ({
+                            x: lm.x * targetImage.naturalWidth,
+                            y: lm.y * targetImage.naturalHeight
+                        })),
+                        width: targetImage.naturalWidth,
+                        height: targetImage.naturalHeight
+                    };
+                    console.log(`Target: ${targetCache.pixelLandmarks.length} stable landmarks`);
+                } else {
+                    console.log("No face detected in target image");
+                    targetLandmarks = null;
+                    targetCache = null;
+                }
+
+                updateWarpButtonState();
+
+                // Show the target image on canvas
+                mainCanvas.width = targetImage.naturalWidth;
+                mainCanvas.height = targetImage.naturalHeight;
+                placeholder.style.display = 'none';
+                ctx.drawImage(targetImage, 0, 0);
+            }
+        };
+    }
+});
+
+// Update warp button enabled state
+function updateWarpButtonState() {
+    const sourceReady = window.PhotoProcessor && window.PhotoProcessor.isProcessed();
+    const targetReady = targetCache && targetCache.pixelLandmarks;
+    warpFaceBtn.disabled = !(sourceReady && targetReady);
+}
+
+// Handle Warp Face button click
+warpFaceBtn.addEventListener('click', () => {
+    performFaceWarp();
+});
+
+// Perform the face warping
+function performFaceWarp() {
+    if (!window.FaceWarper || !window.PhotoProcessor) {
+        console.warn("FaceWarper or PhotoProcessor not loaded");
+        return;
+    }
+
+    const srcCache = window.PhotoProcessor.getCache();
+    if (!srcCache || !targetCache) {
+        console.warn("Source or target not ready for warping");
+        return;
+    }
+
+    console.log("Starting face warp...");
+    console.log(`Source landmarks: ${srcCache.pixelLandmarks.length}`);
+    console.log(`Target landmarks: ${targetCache.pixelLandmarks.length}`);
+    console.log(`Triangles: ${srcCache.triangles.length}`);
+
+    // Set canvas to target size
+    mainCanvas.width = targetCache.width;
+    mainCanvas.height = targetCache.height;
+
+    // Draw target image as background
+    ctx.drawImage(targetImage, 0, 0);
+
+    // Perform the face warp
+    window.FaceWarper.warpFace(
+        ctx,
+        faceImage,
+        srcCache.pixelLandmarks,
+        targetCache.pixelLandmarks,
+        srcCache.triangles
+    );
+
+    console.log("Face warp complete!");
+
+    // Draw debug overlays if enabled
+    if (showTrianglesCheckbox.checked) {
+        window.PhotoProcessor.drawTriangleMesh(
+            ctx,
+            targetCache.pixelLandmarks,
+            srcCache.triangles,
+            1, 1,
+            "#00FFFF"
+        );
+    }
+}
 
 // Handle debug mode toggle - redraw canvas to show/hide landmarks
 debugModeCheckbox.addEventListener('change', () => {
