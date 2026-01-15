@@ -798,3 +798,145 @@ body {
     line-height: 1.4;
     font-style: italic;
 }
+
+/* Responsive Design (Mobile/Tablet) */
+@media (max-width: 768px) {
+    body {
+        height: auto;
+        overflow-y: auto;
+        /* Allow body scrolling on mobile */
+    }
+
+    .editor-container {
+        height: auto;
+        overflow: visible;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .editor-header {
+        padding: 0 0.75rem;
+        position: sticky;
+        top: 0;
+        z-index: 50;
+    }
+
+    .logo h1 {
+        font-size: 1rem;
+    }
+
+    .middle-section {
+        display: flex;
+        flex-direction: column;
+        height: auto;
+    }
+
+    /* Reorder panels: Viewport Top, Controls Middle, Assets Bottom */
+    .viewport-panel {
+        order: 1;
+        min-height: 50vh;
+        /* Give canvas enough space */
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .controls-panel {
+        order: 2;
+        border-right: none;
+        border-left: none;
+        border-bottom: 1px solid var(--border-color);
+        max-height: none;
+        /* remove potential limits */
+    }
+
+    .assets-panel {
+        order: 3;
+        border-right: none;
+        max-height: 500px;
+        /* Limit height of assets list */
+    }
+
+    .panel {
+        overflow: visible;
+        /* Let content flow */
+        height: auto;
+    }
+
+    .panel-content {
+        padding: 0.75rem;
+    }
+
+    /* Viewport adjustments */
+    .viewport-content {
+        padding: 0.5rem;
+    }
+
+    #mainCanvas {
+        max-height: 60vh;
+        /* Prevent it from taking entire screen */
+    }
+
+    /* Asset Grid adjustments */
+    .sample-section .sample-item-container {
+        grid-template-columns: repeat(3, 1fr);
+        /* More columns on mobile width if space allows, or keep 2 */
+        gap: 0.5rem;
+    }
+
+    /* Timeline adaptation */
+    .timeline-panel {
+        order: 4;
+        position: sticky;
+        bottom: 0;
+        z-index: 40;
+        height: auto;
+        padding-bottom: env(safe-area-inset-bottom);
+        /* iOS Safe Area */
+    }
+
+    .timeline-header {
+        height: auto;
+        padding: 0.5rem 1rem;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .playback-controls {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .timeline-slider {
+        height: 12px;
+        /* Larger touch target */
+    }
+
+    .timeline-slider::-webkit-slider-thumb {
+        width: 16px;
+        height: 16px;
+        /* Larger touch handle */
+    }
+
+    /* Controls adaptation */
+    .slider-block input[type="range"] {
+        height: 8px;
+        /* Larger touch target */
+    }
+
+    .slider-block input[type="range"]::-webkit-slider-thumb {
+        width: 20px;
+        height: 20px;
+        /* Larger touch handle */
+    }
+
+    .check-item,
+    .radio-item {
+        padding: 0.75rem 0.5rem;
+        /* Larger touch area */
+    }
+
+    /* Modals */
+    .modal-content {
+        width: 90%;
+        margin: 0 1rem;
+    }
+}
