@@ -27,6 +27,7 @@ const exportStatus = document.getElementById('exportStatus');
 const cancelExportBtn = document.getElementById('cancelExportBtn');
 const warpModeAffine = document.getElementById('warpModeAffine');
 const warpModeTPS = document.getElementById('warpModeTPS');
+const enableCacheCheckbox = document.getElementById('enableCache');
 
 // Offscreen canvas for warping before blending
 let warpCanvas = null;
@@ -113,17 +114,34 @@ async function initApp() {
             const src = item.dataset.src;
             if (!src) return;
 
-            // Highlight the clicked item
-            item.parentElement.querySelectorAll('.sample-item').forEach(i => i.classList.remove('active'));
+            const label = item.querySelector('.sample-label').textContent;
+
+            // Highlight the clicked item - look within the current container
+            const container = item.closest('.sample-item-container');
+            if (container) {
+                container.querySelectorAll('.sample-item').forEach(i => i.classList.remove('active'));
+            }
             item.classList.add('active');
 
             // Determine if it's a video or photo based on the path
             if (src.includes('/videos/') || src.endsWith('.mp4') || src.endsWith('.webm')) {
-                loadSampleVideo(src, item.textContent);
+                loadSampleVideo(src, label);
             } else if (src.includes('/photos/') || src.endsWith('.jpg') || src.endsWith('.png')) {
-                loadSamplePhoto(src, item.textContent);
+                loadSamplePhoto(src, label);
             }
         });
+
+        // Hover to play video thumbnails
+        const video = item.querySelector('video.sample-thumb-video');
+        if (video) {
+            item.addEventListener('mouseenter', () => {
+                video.play().catch(() => { }); // Ignore play interruptions
+            });
+            item.addEventListener('mouseleave', () => {
+                video.pause();
+                video.currentTime = 0;
+            });
+        }
     });
 
     if (window.FaceLandmarkerModule) {
@@ -196,6 +214,12 @@ async function precomputeAllFrames() {
     const srcCache = window.PhotoProcessor ? window.PhotoProcessor.getCache() : null;
     if (!srcCache || !srcCache.processed) {
         console.log("Precompute: No processed face image");
+        return;
+    }
+
+    // Check if cache toggle is enabled
+    if (enableCacheCheckbox && !enableCacheCheckbox.checked) {
+        console.log("Precompute: Skipping because cache toggle is disabled");
         return;
     }
 
@@ -357,8 +381,8 @@ function loadSampleVideo(src, filename) {
         updateTimeDisplay();
         videoLandmarkCache.clear();
 
-        // Trigger frame pre-caching if face image is ready
-        if (window.PhotoProcessor && window.PhotoProcessor.isProcessed()) {
+        // Trigger frame pre-caching ONLY if swap is active and cache toggle is enabled
+        if (isSwapEnabled && enableCacheCheckbox && enableCacheCheckbox.checked && window.PhotoProcessor && window.PhotoProcessor.isProcessed()) {
             precomputeAllFrames();
         } else {
             sourceVideo.play()
@@ -409,9 +433,9 @@ async function loadSamplePhoto(src, filename) {
             updateWarpButtonState();
             updateSwapButtonState();
 
-            // Invalidate and re-cache frames when new image processed
+            // Invalidate and conditionally re-cache frames when new image processed
             invalidateFrameCache('new face image processed');
-            if (sourceVideo.src && sourceVideo.duration > 0) {
+            if (isSwapEnabled && enableCacheCheckbox && enableCacheCheckbox.checked && sourceVideo.src && sourceVideo.duration > 0) {
                 precomputeAllFrames();
             } else if (!sourceVideo.src || sourceVideo.paused) {
                 redrawCanvas();
@@ -501,7 +525,7 @@ function handleWarpModeChange() {
     if (newMode !== currentCacheWarpMode && frameCacheValid) {
         console.log(`Warp mode changed from ${currentCacheWarpMode} to ${newMode}`);
         invalidateFrameCache('warp mode changed');
-        if (sourceVideo.src && sourceVideo.duration > 0 && window.PhotoProcessor && window.PhotoProcessor.isProcessed()) {
+        if (isSwapEnabled && enableCacheCheckbox && enableCacheCheckbox.checked && sourceVideo.src && sourceVideo.duration > 0 && window.PhotoProcessor && window.PhotoProcessor.isProcessed()) {
             precomputeAllFrames();
         }
     }
@@ -933,6 +957,12 @@ enableSwapBtn.addEventListener('click', () => {
     enableSwapBtn.classList.toggle('active', isSwapEnabled);
     enableSwapBtn.querySelector('.btn-text').textContent = isSwapEnabled ? 'Disable Face Swap' : 'Apply Face Swap';
     updateSwapButtonState();
+
+    // Trigger precompute if enabled and swap is active
+    if (isSwapEnabled && enableCacheCheckbox && enableCacheCheckbox.checked) {
+        precomputeAllFrames();
+    }
+
     // Redraw if paused
     if (!sourceVideo.src || sourceVideo.paused) {
         redrawCanvas();
