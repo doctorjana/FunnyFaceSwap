@@ -49,6 +49,18 @@ let isExporting = false;
 let exportCancelled = false;
 let isSwapEnabled = false; // Track if face swap is active
 
+// Frame caching state
+let warpedFrameCache = new Map();    // Map of timeKey -> ImageData
+let frameCacheValid = false;          // Is cache ready for playback?
+let currentCacheWarpMode = 'affine';  // Track which warp mode cache was built with
+let isCaching = false;                // Is caching in progress?
+let cachingCancelled = false;         // Was caching cancelled?
+
+// Loading overlay elements
+const loadingOverlay = document.getElementById('loadingOverlay');
+const loadingStatus = document.getElementById('loadingStatus');
+const loadingProgress = document.getElementById('loadingProgress');
+
 // Helper to update asset list & viewport name
 function registerAsset(inputId, filename) {
     const isVideo = inputId === 'videoInput';
@@ -126,9 +138,213 @@ async function initApp() {
     }
 }
 
+/**
+ * Invalidate the warped frame cache
+ * Called when warp mode changes, image is reprocessed, or video changes
+ */
+function invalidateFrameCache(reason = 'unknown') {
+    console.log(`Invalidating frame cache: ${reason}`);
+    warpedFrameCache.clear();
+    frameCacheValid = false;
+    cachingCancelled = true; // Cancel any in-progress caching
+}
+
+/**
+ * Show loading overlay
+ */
+function showLoadingOverlay(message = 'Preparing frames...') {
+    if (loadingOverlay) {
+        loadingOverlay.classList.add('active');
+        loadingStatus.textContent = message;
+        loadingProgress.style.width = '0%';
+    }
+}
+
+/**
+ * Hide loading overlay
+ */
+function hideLoadingOverlay() {
+    if (loadingOverlay) {
+        loadingOverlay.classList.remove('active');
+    }
+}
+
+/**
+ * Update loading progress
+ */
+function updateLoadingProgress(current, total, message) {
+    const percent = (current / total) * 100;
+    if (loadingProgress) {
+        loadingProgress.style.width = `${percent}%`;
+    }
+    if (loadingStatus && message) {
+        loadingStatus.textContent = message;
+    }
+}
+
+/**
+ * Pre-compute and cache all warped frames for the video
+ * Only runs when both video and processed image are available
+ */
+async function precomputeAllFrames() {
+    // Check prerequisites
+    if (!sourceVideo.src || sourceVideo.duration === 0) {
+        console.log("Precompute: No video loaded");
+        return;
+    }
+
+    const srcCache = window.PhotoProcessor ? window.PhotoProcessor.getCache() : null;
+    if (!srcCache || !srcCache.processed) {
+        console.log("Precompute: No processed face image");
+        return;
+    }
+
+    // Already caching
+    if (isCaching) {
+        console.log("Precompute: Already in progress");
+        return;
+    }
+
+    isCaching = true;
+    cachingCancelled = false;
+    frameCacheValid = false;
+    warpedFrameCache.clear();
+
+    // Track current warp mode
+    currentCacheWarpMode = warpModeTPS && warpModeTPS.checked ? 'tps' : 'affine';
+    const useTPS = currentCacheWarpMode === 'tps';
+
+    // Pause video and rendering loop during caching
+    const wasPlaying = !sourceVideo.paused;
+    sourceVideo.pause();
+    if (renderLoopId) {
+        if (sourceVideo.requestVideoFrameCallback) {
+            sourceVideo.cancelVideoFrameCallback(renderLoopId);
+        } else {
+            cancelAnimationFrame(renderLoopId);
+        }
+        renderLoopId = null;
+    }
+
+    showLoadingOverlay('Caching frames...');
+
+    const fps = 30;
+    const totalDuration = sourceVideo.duration;
+    const totalFrames = Math.floor(totalDuration * fps);
+    const frameTime = 1 / fps;
+
+    console.log(`Precomputing ${totalFrames} frames at ${fps}fps...`);
+
+    // Create temporary canvas for warping
+    const tempWarpCanvas = document.createElement('canvas');
+    tempWarpCanvas.width = mainCanvas.width;
+    tempWarpCanvas.height = mainCanvas.height;
+    const tempWarpCtx = tempWarpCanvas.getContext('2d');
+
+    for (let i = 0; i <= totalFrames; i++) {
+        if (cachingCancelled) {
+            console.log("Precompute: Cancelled");
+            break;
+        }
+
+        const currentTime = Math.min(i * frameTime, totalDuration);
+        sourceVideo.currentTime = currentTime;
+
+        // Wait for seek
+        await new Promise(resolve => {
+            const onSeeked = () => {
+                sourceVideo.removeEventListener('seeked', onSeeked);
+                resolve();
+            };
+            sourceVideo.addEventListener('seeked', onSeeked);
+        });
+
+        // Wait for frame data
+        await waitForVideoData(sourceVideo);
+
+        // Detect landmarks
+        let currentLandmarks = null;
+        const timeKey = Math.floor(currentTime * 1000);
+
+        if (videoLandmarkCache.has(timeKey)) {
+            currentLandmarks = videoLandmarkCache.get(timeKey);
+        } else if (window.FaceLandmarkerModule && window.FaceLandmarkerModule.isReady()) {
+            // Draw frame to canvas for detection
+            ctx.drawImage(sourceVideo, 0, 0, mainCanvas.width, mainCanvas.height);
+            currentLandmarks = await window.FaceLandmarkerModule.detectImage(mainCanvas);
+            if (currentLandmarks && currentLandmarks.length > 0) {
+                videoLandmarkCache.set(timeKey, currentLandmarks);
+            }
+        }
+
+        // Compute warped frame if landmarks found
+        if (currentLandmarks && currentLandmarks.length > 0) {
+            for (const faceLandmarks of currentLandmarks) {
+                const stableVideoLandmarks = window.FaceLandmarkerModule.getStableLandmarks(faceLandmarks);
+
+                if (stableVideoLandmarks.length === srcCache.pixelLandmarks.length) {
+                    const videoPixelLandmarks = stableVideoLandmarks.map(lm => ({
+                        x: lm.x * mainCanvas.width,
+                        y: lm.y * mainCanvas.height
+                    }));
+
+                    // Clear and warp
+                    tempWarpCtx.clearRect(0, 0, tempWarpCanvas.width, tempWarpCanvas.height);
+
+                    if (useTPS && window.TPSWarper) {
+                        const bbox = window.TPSWarper.computeBoundingBoxFromLandmarks(videoPixelLandmarks, 30);
+                        window.TPSWarper.warpFaceTPS(
+                            tempWarpCtx, faceImage, srcCache.pixelLandmarks,
+                            videoPixelLandmarks, bbox, 25
+                        );
+                    } else {
+                        window.FaceWarper.warpFace(
+                            tempWarpCtx, faceImage, srcCache.pixelLandmarks,
+                            videoPixelLandmarks, srcCache.triangles
+                        );
+                    }
+
+                    // Store warped frame data
+                    const warpedData = tempWarpCtx.getImageData(0, 0, tempWarpCanvas.width, tempWarpCanvas.height);
+                    warpedFrameCache.set(timeKey, {
+                        imageData: warpedData,
+                        landmarks: videoPixelLandmarks
+                    });
+                }
+            }
+        }
+
+        // Update progress
+        updateLoadingProgress(i + 1, totalFrames + 1, `Caching frame ${i + 1} of ${totalFrames + 1}...`);
+
+        // Yield to UI
+        await new Promise(resolve => setTimeout(resolve, 0));
+    }
+
+    hideLoadingOverlay();
+    isCaching = false;
+
+    if (!cachingCancelled) {
+        frameCacheValid = true;
+        console.log(`Precompute complete: ${warpedFrameCache.size} frames cached`);
+    }
+
+    // Resume video
+    sourceVideo.currentTime = 0;
+    if (wasPlaying) {
+        sourceVideo.play();
+        playPauseBtn.querySelector('.play-icon').textContent = '⏸️';
+    }
+    startRenderingLoop();
+}
+
 // Load a sample video from the samples folder
 function loadSampleVideo(src, filename) {
     console.log(`Loading sample video: ${src}`);
+
+    // Invalidate frame cache when new video loaded
+    invalidateFrameCache('new video loaded');
+
     sourceVideo.src = src;
     registerAsset('videoInput', filename);
 
@@ -141,15 +357,20 @@ function loadSampleVideo(src, filename) {
         updateTimeDisplay();
         videoLandmarkCache.clear();
 
-        sourceVideo.play()
-            .then(() => {
-                playPauseBtn.querySelector('.play-icon').textContent = '⏸️';
-                startRenderingLoop();
-                updateSwapButtonState();
-            })
-            .catch(err => {
-                console.error("Video play failed:", err);
-            });
+        // Trigger frame pre-caching if face image is ready
+        if (window.PhotoProcessor && window.PhotoProcessor.isProcessed()) {
+            precomputeAllFrames();
+        } else {
+            sourceVideo.play()
+                .then(() => {
+                    playPauseBtn.querySelector('.play-icon').textContent = '⏸️';
+                    startRenderingLoop();
+                    updateSwapButtonState();
+                })
+                .catch(err => {
+                    console.error("Video play failed:", err);
+                });
+        }
     };
 }
 
@@ -188,7 +409,11 @@ async function loadSamplePhoto(src, filename) {
             updateWarpButtonState();
             updateSwapButtonState();
 
-            if (!sourceVideo.src || sourceVideo.paused) {
+            // Invalidate and re-cache frames when new image processed
+            invalidateFrameCache('new face image processed');
+            if (sourceVideo.src && sourceVideo.duration > 0) {
+                precomputeAllFrames();
+            } else if (!sourceVideo.src || sourceVideo.paused) {
                 redrawCanvas();
             }
         }
@@ -269,6 +494,25 @@ edgeFeatherSlider.addEventListener('input', () => {
 falloffSlider.addEventListener('input', () => {
     falloffVal.textContent = `${falloffSlider.value}%`;
 });
+
+// Warp mode change listeners - invalidate cache and re-compute
+function handleWarpModeChange() {
+    const newMode = warpModeTPS && warpModeTPS.checked ? 'tps' : 'affine';
+    if (newMode !== currentCacheWarpMode && frameCacheValid) {
+        console.log(`Warp mode changed from ${currentCacheWarpMode} to ${newMode}`);
+        invalidateFrameCache('warp mode changed');
+        if (sourceVideo.src && sourceVideo.duration > 0 && window.PhotoProcessor && window.PhotoProcessor.isProcessed()) {
+            precomputeAllFrames();
+        }
+    }
+}
+
+if (warpModeAffine) {
+    warpModeAffine.addEventListener('change', handleWarpModeChange);
+}
+if (warpModeTPS) {
+    warpModeTPS.addEventListener('change', handleWarpModeChange);
+}
 
 // Helper: Wait for valid video data
 function waitForVideoData(video) {
@@ -539,11 +783,6 @@ async function processExportFrame() {
                             window.FaceBlender.matchColorStats(warpCtx, warpCanvas.width, warpCanvas.height, sourceStats, targetStats);
                         }
                     }
-
-                    // Manual Adjust
-                    const b = parseInt(brightnessSlider.value) || 0;
-                    const c = parseInt(contrastSlider.value) || 0;
-                    if (b !== 0 || c !== 0) window.FaceBlender.adjustColor(warpCtx, warpCanvas.width, warpCanvas.height, b, c);
 
                     // Blend
                     const edgeBlur = parseInt(edgeFeatherSlider.value) || 20;
@@ -885,7 +1124,7 @@ function drawFrame() {
         }
     }
 
-    // Perform real-time face swap if enabled
+    // Perform face swap - use cached frames if available
     if (isSwapEnabled &&
         window.FaceWarper &&
         window.PhotoProcessor &&
@@ -893,121 +1132,154 @@ function drawFrame() {
         videoLandmarks &&
         videoLandmarks.length > 0) {
 
-        const srcCache = window.PhotoProcessor.getCache();
-        if (srcCache) {
-            // Process each detected face in the video
-            for (const faceLandmarks of videoLandmarks) {
-                // Get stable landmarks from video face
-                const stableVideoLandmarks = window.FaceLandmarkerModule.getStableLandmarks(faceLandmarks);
+        const timeKey = Math.floor(sourceVideo.currentTime * 1000);
+        const cachedFrame = warpedFrameCache.get(timeKey);
 
-                if (stableVideoLandmarks.length === srcCache.pixelLandmarks.length) {
-                    // Convert to pixel coordinates
-                    const videoPixelLandmarks = stableVideoLandmarks.map(lm => ({
-                        x: lm.x * mainCanvas.width,
-                        y: lm.y * mainCanvas.height
-                    }));
+        // Check if we have a valid cached frame for this timestamp
+        if (frameCacheValid && cachedFrame) {
+            // Use cached warped frame - much faster!
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = cachedFrame.imageData.width;
+            tempCanvas.height = cachedFrame.imageData.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.putImageData(cachedFrame.imageData, 0, 0);
 
-                    // Get edge feather setting
-                    const edgeBlur = parseInt(edgeFeatherSlider.value) || 20;
+            // Apply color matching and blending to cached data
+            const edgeBlur = parseInt(edgeFeatherSlider.value) || 20;
+            const falloff = parseInt(falloffSlider.value) || 70;
 
-                    // Check if feathering is enabled
-                    const useFeathering = window.FaceBlender && edgeBlur > 0;
+            if (autoMatchCheckbox.checked && cachedFrame.landmarks) {
+                const sourceStats = window.FaceBlender.getColorStats(tempCtx, cachedFrame.landmarks, tempCanvas.width, tempCanvas.height);
+                const targetStats = window.FaceBlender.getColorStats(ctx, cachedFrame.landmarks, mainCanvas.width, mainCanvas.height);
+                if (sourceStats && targetStats) {
+                    window.FaceBlender.matchColorStats(tempCtx, tempCanvas.width, tempCanvas.height, sourceStats, targetStats);
+                }
+            }
 
-                    if (useFeathering) {
-                        // Initialize offscreen canvas if needed
-                        if (!warpCanvas || warpCanvas.width !== mainCanvas.width || warpCanvas.height !== mainCanvas.height) {
-                            warpCanvas = document.createElement('canvas');
-                            warpCanvas.width = mainCanvas.width;
-                            warpCanvas.height = mainCanvas.height;
-                            warpCtx = warpCanvas.getContext('2d');
-                        }
+            if (window.FaceBlender && cachedFrame.landmarks) {
+                window.FaceBlender.applyFeatheredBlend(ctx, tempCanvas, cachedFrame.landmarks, edgeBlur, falloff);
+            } else {
+                ctx.drawImage(tempCanvas, 0, 0);
+            }
+        } else {
+            // Fall back to real-time warping if no cache
 
-                        // Clear and warp to offscreen canvas
-                        warpCtx.clearRect(0, 0, warpCanvas.width, warpCanvas.height);
+            const srcCache = window.PhotoProcessor.getCache();
+            if (srcCache) {
+                // Process each detected face in the video
+                for (const faceLandmarks of videoLandmarks) {
+                    // Get stable landmarks from video face
+                    const stableVideoLandmarks = window.FaceLandmarkerModule.getStableLandmarks(faceLandmarks);
 
-                        // Check warp mode and use appropriate warper
-                        const useTPS = warpModeTPS && warpModeTPS.checked;
-                        if (useTPS && window.TPSWarper) {
-                            // Use TPS warping
-                            const bbox = window.TPSWarper.computeBoundingBoxFromLandmarks(videoPixelLandmarks, 30);
-                            window.TPSWarper.warpFaceTPS(
-                                warpCtx,
-                                faceImage,
-                                srcCache.pixelLandmarks,
+                    if (stableVideoLandmarks.length === srcCache.pixelLandmarks.length) {
+                        // Convert to pixel coordinates
+                        const videoPixelLandmarks = stableVideoLandmarks.map(lm => ({
+                            x: lm.x * mainCanvas.width,
+                            y: lm.y * mainCanvas.height
+                        }));
+
+                        // Get edge feather setting
+                        const edgeBlur = parseInt(edgeFeatherSlider.value) || 20;
+
+                        // Check if feathering is enabled
+                        const useFeathering = window.FaceBlender && edgeBlur > 0;
+
+                        if (useFeathering) {
+                            // Initialize offscreen canvas if needed
+                            if (!warpCanvas || warpCanvas.width !== mainCanvas.width || warpCanvas.height !== mainCanvas.height) {
+                                warpCanvas = document.createElement('canvas');
+                                warpCanvas.width = mainCanvas.width;
+                                warpCanvas.height = mainCanvas.height;
+                                warpCtx = warpCanvas.getContext('2d');
+                            }
+
+                            // Clear and warp to offscreen canvas
+                            warpCtx.clearRect(0, 0, warpCanvas.width, warpCanvas.height);
+
+                            // Check warp mode and use appropriate warper
+                            const useTPS = warpModeTPS && warpModeTPS.checked;
+                            if (useTPS && window.TPSWarper) {
+                                // Use TPS warping
+                                const bbox = window.TPSWarper.computeBoundingBoxFromLandmarks(videoPixelLandmarks, 30);
+                                window.TPSWarper.warpFaceTPS(
+                                    warpCtx,
+                                    faceImage,
+                                    srcCache.pixelLandmarks,
+                                    videoPixelLandmarks,
+                                    bbox,
+                                    25  // Grid size for performance
+                                );
+                            } else {
+                                // Use affine triangle warping
+                                window.FaceWarper.warpFace(
+                                    warpCtx,
+                                    faceImage,
+                                    srcCache.pixelLandmarks,
+                                    videoPixelLandmarks,
+                                    srcCache.triangles
+                                );
+                            }
+
+                            // Auto-match lighting (LAB color matching)
+                            if (autoMatchCheckbox.checked) {
+                                // Get stats from source (warp canvas) and target (video on main canvas)
+                                const sourceStats = window.FaceBlender.getColorStats(warpCtx, videoPixelLandmarks, warpCanvas.width, warpCanvas.height);
+                                const targetStats = window.FaceBlender.getColorStats(ctx, videoPixelLandmarks, mainCanvas.width, mainCanvas.height);
+
+                                // Match colors on the warp canvas
+                                if (sourceStats && targetStats) {
+                                    window.FaceBlender.matchColorStats(warpCtx, warpCanvas.width, warpCanvas.height, sourceStats, targetStats);
+                                }
+                            }
+
+                            // Apply edge-feathered blending with falloff
+                            const falloff = parseInt(falloffSlider.value) || 70;
+                            window.FaceBlender.applyFeatheredBlend(
+                                ctx,
+                                warpCanvas,
                                 videoPixelLandmarks,
-                                bbox,
-                                25  // Grid size for performance
+                                edgeBlur,
+                                falloff
                             );
                         } else {
-                            // Use affine triangle warping
-                            window.FaceWarper.warpFace(
-                                warpCtx,
-                                faceImage,
-                                srcCache.pixelLandmarks,
-                                videoPixelLandmarks,
-                                srcCache.triangles
-                            );
-                        }
-
-                        // Auto-match lighting (LAB color matching)
-                        if (autoMatchCheckbox.checked) {
-                            // Get stats from source (warp canvas) and target (video on main canvas)
-                            const sourceStats = window.FaceBlender.getColorStats(warpCtx, videoPixelLandmarks, warpCanvas.width, warpCanvas.height);
-                            const targetStats = window.FaceBlender.getColorStats(ctx, videoPixelLandmarks, mainCanvas.width, mainCanvas.height);
-
-                            // Match colors on the warp canvas
-                            if (sourceStats && targetStats) {
-                                window.FaceBlender.matchColorStats(warpCtx, warpCanvas.width, warpCanvas.height, sourceStats, targetStats);
+                            // Direct warp without feathering
+                            const useTPS = warpModeTPS && warpModeTPS.checked;
+                            if (useTPS && window.TPSWarper) {
+                                const bbox = window.TPSWarper.computeBoundingBoxFromLandmarks(videoPixelLandmarks, 30);
+                                window.TPSWarper.warpFaceTPS(
+                                    ctx,
+                                    faceImage,
+                                    srcCache.pixelLandmarks,
+                                    videoPixelLandmarks,
+                                    bbox,
+                                    25
+                                );
+                            } else {
+                                window.FaceWarper.warpFace(
+                                    ctx,
+                                    faceImage,
+                                    srcCache.pixelLandmarks,
+                                    videoPixelLandmarks,
+                                    srcCache.triangles
+                                );
                             }
                         }
 
-                        // Apply edge-feathered blending with falloff
-                        const falloff = parseInt(falloffSlider.value) || 70;
-                        window.FaceBlender.applyFeatheredBlend(
-                            ctx,
-                            warpCanvas,
-                            videoPixelLandmarks,
-                            edgeBlur,
-                            falloff
-                        );
-                    } else {
-                        // Direct warp without feathering
-                        const useTPS = warpModeTPS && warpModeTPS.checked;
-                        if (useTPS && window.TPSWarper) {
-                            const bbox = window.TPSWarper.computeBoundingBoxFromLandmarks(videoPixelLandmarks, 30);
-                            window.TPSWarper.warpFaceTPS(
+                        // Draw triangle mesh overlay if debug enabled
+                        if (showTrianglesCheckbox.checked) {
+                            window.PhotoProcessor.drawTriangleMesh(
                                 ctx,
-                                faceImage,
-                                srcCache.pixelLandmarks,
                                 videoPixelLandmarks,
-                                bbox,
-                                25
-                            );
-                        } else {
-                            window.FaceWarper.warpFace(
-                                ctx,
-                                faceImage,
-                                srcCache.pixelLandmarks,
-                                videoPixelLandmarks,
-                                srcCache.triangles
+                                srcCache.triangles,
+                                1, 1,
+                                "#00FFFF"
                             );
                         }
-                    }
-
-                    // Draw triangle mesh overlay if debug enabled
-                    if (showTrianglesCheckbox.checked) {
-                        window.PhotoProcessor.drawTriangleMesh(
-                            ctx,
-                            videoPixelLandmarks,
-                            srcCache.triangles,
-                            1, 1,
-                            "#00FFFF"
-                        );
                     }
                 }
             }
         }
-    }
+    } // This is the added closing brace for the 'if (isSwapEnabled && ...)' block.
 
     // Draw the face image in the corner if it exists (and swap not enabled)
     if (!isSwapEnabled && faceImage.complete && faceImage.naturalHeight !== 0 && faceImage.src) {
