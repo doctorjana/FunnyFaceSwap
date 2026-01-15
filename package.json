@@ -1,6 +1,7 @@
 {
   "name": "funnyfaceswap",
   "version": "1.0.0",
+  "type": "module",
   "description": "A fun face swapping web application.",
   "main": "script.js",
   "scripts": {
