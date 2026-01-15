@@ -4,7 +4,14 @@ A pure client-side web application for creating hilarious and high-quality face 
 
 🔗 **[Live Preview](https://doctorjana.github.io/FunnyFaceSwap/)**
 
-![FunnyFaceSwap Pro Screenshot](./public/samples/photos/portrait2.jpg) *Placeholder image - replace with actual screenshot if available*
+> [!TIP]
+> **For the best performance, please use Google Chrome.** 🚀
+> Firefox may experience slower rendering speeds due to differences in canvas hardware acceleration.
+
+<p align="center">
+  <img src="./public/samples/before.gif" width="45%" alt="Before Swap">
+  <img src="./public/samples/after.gif" width="45%" alt="After Swap">
+</p>
 
 ## ✨ Features
 
