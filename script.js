@@ -92,6 +92,7 @@ function registerAsset(inputId, filename) {
 // Initialize Face Landmarker and Tab logic
 async function initApp() {
     console.log("Initializing application...");
+    showLoadingOverlay('Initializing AI models...');
 
     // Tab switching logic
     const tabs = document.querySelectorAll('.tab-btn');
@@ -148,8 +149,10 @@ async function initApp() {
         const success = await window.FaceLandmarkerModule.init();
         if (success) {
             console.log("Face Landmarker ready!");
+            hideLoadingOverlay();
         } else {
             console.warn("Face Landmarker initialization failed. Landmark detection will be disabled.");
+            hideLoadingOverlay();
         }
     } else {
         console.warn("FaceLandmarkerModule not found.");
@@ -369,10 +372,12 @@ function loadSampleVideo(src, filename) {
     // Invalidate frame cache when new video loaded
     invalidateFrameCache('new video loaded');
 
+    showLoadingOverlay('Loading video...');
     sourceVideo.src = src;
     registerAsset('videoInput', filename);
 
     sourceVideo.onloadedmetadata = () => {
+        hideLoadingOverlay();
         mainCanvas.width = sourceVideo.videoWidth;
         mainCanvas.height = sourceVideo.videoHeight;
         placeholder.style.display = 'none';
@@ -401,6 +406,7 @@ function loadSampleVideo(src, filename) {
 // Load a sample photo from the samples folder
 async function loadSamplePhoto(src, filename) {
     console.log(`Loading sample photo: ${src}`);
+    showLoadingOverlay('Processing photo...');
     faceImage.src = src;
 
     faceImage.onload = async () => {
@@ -441,6 +447,7 @@ async function loadSamplePhoto(src, filename) {
                 redrawCanvas();
             }
         }
+        hideLoadingOverlay();
     };
 }
 
@@ -449,11 +456,13 @@ videoInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
         const url = URL.createObjectURL(file);
+        showLoadingOverlay('Loading video...');
         sourceVideo.src = url;
         registerAsset('videoInput', file.name);
 
         // When video metadata is loaded, resize canvas and start playback
         sourceVideo.onloadedmetadata = () => {
+            hideLoadingOverlay();
             mainCanvas.width = sourceVideo.videoWidth;
             mainCanvas.height = sourceVideo.videoHeight;
             placeholder.style.display = 'none';
@@ -833,6 +842,7 @@ imageInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
         const url = URL.createObjectURL(file);
+        showLoadingOverlay('Processing photo...');
         faceImage.src = url;
         faceImage.onload = async () => {
             registerAsset('imageInput', file.name);
@@ -872,6 +882,7 @@ imageInput.addEventListener('change', async (e) => {
                     redrawCanvas();
                 }
             }
+            hideLoadingOverlay();
         };
     }
 });
