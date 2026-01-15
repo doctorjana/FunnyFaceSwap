@@ -25,6 +25,8 @@ const exportModal = document.getElementById('exportModal');
 const exportProgress = document.getElementById('exportProgress');
 const exportStatus = document.getElementById('exportStatus');
 const cancelExportBtn = document.getElementById('cancelExportBtn');
+const warpModeAffine = document.getElementById('warpModeAffine');
+const warpModeTPS = document.getElementById('warpModeTPS');
 
 // Offscreen canvas for warping before blending
 let warpCanvas = null;
@@ -520,8 +522,14 @@ async function processExportFrame() {
                     }
                     warpCtx.clearRect(0, 0, warpCanvas.width, warpCanvas.height);
 
-                    // Warp
-                    window.FaceWarper.warpFace(warpCtx, faceImage, srcCache.pixelLandmarks, videoPixelLandmarks, srcCache.triangles);
+                    // Warp - check warp mode
+                    const useTPS = warpModeTPS && warpModeTPS.checked;
+                    if (useTPS && window.TPSWarper) {
+                        const bbox = window.TPSWarper.computeBoundingBoxFromLandmarks(videoPixelLandmarks, 30);
+                        window.TPSWarper.warpFaceTPS(warpCtx, faceImage, srcCache.pixelLandmarks, videoPixelLandmarks, bbox, 25);
+                    } else {
+                        window.FaceWarper.warpFace(warpCtx, faceImage, srcCache.pixelLandmarks, videoPixelLandmarks, srcCache.triangles);
+                    }
 
                     // Color Match
                     if (autoMatchCheckbox.checked) {
@@ -916,13 +924,30 @@ function drawFrame() {
 
                         // Clear and warp to offscreen canvas
                         warpCtx.clearRect(0, 0, warpCanvas.width, warpCanvas.height);
-                        window.FaceWarper.warpFace(
-                            warpCtx,
-                            faceImage,
-                            srcCache.pixelLandmarks,
-                            videoPixelLandmarks,
-                            srcCache.triangles
-                        );
+
+                        // Check warp mode and use appropriate warper
+                        const useTPS = warpModeTPS && warpModeTPS.checked;
+                        if (useTPS && window.TPSWarper) {
+                            // Use TPS warping
+                            const bbox = window.TPSWarper.computeBoundingBoxFromLandmarks(videoPixelLandmarks, 30);
+                            window.TPSWarper.warpFaceTPS(
+                                warpCtx,
+                                faceImage,
+                                srcCache.pixelLandmarks,
+                                videoPixelLandmarks,
+                                bbox,
+                                25  // Grid size for performance
+                            );
+                        } else {
+                            // Use affine triangle warping
+                            window.FaceWarper.warpFace(
+                                warpCtx,
+                                faceImage,
+                                srcCache.pixelLandmarks,
+                                videoPixelLandmarks,
+                                srcCache.triangles
+                            );
+                        }
 
                         // Auto-match lighting (LAB color matching)
                         if (autoMatchCheckbox.checked) {
@@ -947,13 +972,26 @@ function drawFrame() {
                         );
                     } else {
                         // Direct warp without feathering
-                        window.FaceWarper.warpFace(
-                            ctx,
-                            faceImage,
-                            srcCache.pixelLandmarks,
-                            videoPixelLandmarks,
-                            srcCache.triangles
-                        );
+                        const useTPS = warpModeTPS && warpModeTPS.checked;
+                        if (useTPS && window.TPSWarper) {
+                            const bbox = window.TPSWarper.computeBoundingBoxFromLandmarks(videoPixelLandmarks, 30);
+                            window.TPSWarper.warpFaceTPS(
+                                ctx,
+                                faceImage,
+                                srcCache.pixelLandmarks,
+                                videoPixelLandmarks,
+                                bbox,
+                                25
+                            );
+                        } else {
+                            window.FaceWarper.warpFace(
+                                ctx,
+                                faceImage,
+                                srcCache.pixelLandmarks,
+                                videoPixelLandmarks,
+                                srcCache.triangles
+                            );
+                        }
                     }
 
                     // Draw triangle mesh overlay if debug enabled

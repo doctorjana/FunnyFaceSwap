@@ -308,6 +308,37 @@ body {
     accent-color: var(--accent-color);
 }
 
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.radio-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+    padding: 0.4rem 0.6rem;
+    border-radius: var(--border-radius-sm);
+    transition: all 0.15s ease;
+}
+
+.radio-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.radio-item:has(input:checked) {
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--accent-color);
+}
+
+.radio-item input {
+    accent-color: var(--accent-color);
+}
+
 .slider-block {
     margin-top: 1rem;
 }
