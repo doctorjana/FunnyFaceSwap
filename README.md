@@ -66,4 +66,4 @@ The project is configured for easy deployment to GitHub Pages.
     ```
 2.  Deploy the `dist` folder to your `gh-pages` branch.
 
-_Built with HTML5 Canvas, Vanilla JavaScript, and Vite._ Baku
+_Built with HTML5 Canvas, Vanilla JavaScript, and Vite._
